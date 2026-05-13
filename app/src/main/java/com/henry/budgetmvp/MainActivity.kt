@@ -3,6 +3,7 @@ package com.henry.budgetmvp
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,6 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.* // Ensure all icons are available
+import androidx.compose.ui.graphics.vector.ImageVector
 
 // 1. DATA MODEL: Essential for clean architecture and type safety
 data class Transaction(
@@ -199,37 +202,75 @@ fun TransactionInput(onSave: (String, Double, String) -> Unit) {
 fun TransactionRow(transaction: Transaction, onDelete: () -> Unit) {
     OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.outlinedCardColors(containerColor = Color.White)
+        colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.3f))
     ) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = transaction.name, fontWeight = FontWeight.Bold)
-                Text(
-                    text = transaction.category,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
+            // 1. CATEGORY ICON: Providing immediate visual context
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .padding(4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = getCategoryIcon(transaction.category),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = transaction.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = transaction.category,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
                 val formattedAmount = "%.2f".format(Math.abs(transaction.amount))
                 Text(
                     text = if (transaction.amount >= 0) "+$$formattedAmount" else "-$$formattedAmount",
                     color = if (transaction.amount >= 0) Color(0xFF2E7D32) else Color.Red,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.ExtraBold
                 )
-                IconButton(onClick = onDelete) {
+
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(24.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Delete",
-                        tint = Color.Gray.copy(alpha = 0.5f)
+                        tint = Color.LightGray,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
         }
+    }
+}
+
+// 2. ICON MAPPER: Translates category strings into visual symbols
+fun getCategoryIcon(category: String): ImageVector {
+    return when (category) {
+        "Food" -> Icons.Default.Restaurant
+        "Rent" -> Icons.Default.Home
+        "Salary" -> Icons.Default.Payments
+        "Transport" -> Icons.Default.DirectionsCar
+        "Entertainment" -> Icons.Default.ConfirmationNumber
+        else -> Icons.Default.Category
     }
 }

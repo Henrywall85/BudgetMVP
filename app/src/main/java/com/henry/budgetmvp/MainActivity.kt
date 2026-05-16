@@ -1,5 +1,9 @@
 package com.henry.budgetmvp
 
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.WindowInsets
@@ -198,7 +202,7 @@ fun TotalPoolCard(total: Double) {
         ) {
             Text("Total Funds Available (Ready to Assign)", style = MaterialTheme.typography.labelLarge)
             Text(
-                text = "$${"%.2f".format(total)}",
+                text = "$${"%,.2f".format(total)}",
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Black
             )
@@ -221,7 +225,7 @@ fun IncomeDetailsCard(stream: IncomeStream, onClick: () -> Unit, onDelete: () ->
             Column(modifier = Modifier.weight(1f)) {
                 Text(stream.sourceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Text("Cycle Window: ${stream.frequency}", style = MaterialTheme.typography.bodyMedium)
-                Text("Amount: $${"%.2f".format(stream.amount)}", style = MaterialTheme.typography.labelMedium)
+                Text("Amount: $${"%,.2f".format(stream.amount)}", style = MaterialTheme.typography.labelMedium)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -251,12 +255,17 @@ fun IncomeEntrySheet(
 ) {
     var source by remember { mutableStateOf(targetStream?.sourceName ?: "") }
     var amount by remember { mutableStateOf(targetStream?.amount?.let { if (it == 0.0) "" else it.toString() } ?: "") }
-    var frequency by remember { mutableStateOf(targetStream?.frequency ?: "Monthly") }
+
+    var frequency by remember { mutableStateOf(targetStream?.frequency ?: "Please Enter Frequency") }
 
     val frequencies = listOf("Weekly", "Bi-Weekly", "Monthly")
     var expanded by remember { mutableStateOf(false) }
-
+    val focusManager = LocalFocusManager.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val isFormValid = source.isNotBlank() &&
+            (amount.toDoubleOrNull() ?: 0.0) > 0 &&
+            frequency != "Please Enter Frequency"
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -281,15 +290,20 @@ fun IncomeEntrySheet(
                 value = source,
                 onValueChange = { source = it },
                 label = { Text("Income Source Name") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                singleLine = true
             )
 
             OutlinedTextField(
                 value = amount,
                 onValueChange = { amount = it },
                 label = { Text("Paycheck Amount") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                singleLine = true
             )
 
             ExposedDropdownMenuBox(
@@ -325,8 +339,9 @@ fun IncomeEntrySheet(
             Button(
                 onClick = {
                     val amt = amount.toDoubleOrNull() ?: 0.0
-                    if (source.isNotBlank() && amt > 0) onConfirm(source, amt, frequency)
+                    if (isFormValid) onConfirm(source, amt, frequency)
                 },
+                enabled = isFormValid,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)

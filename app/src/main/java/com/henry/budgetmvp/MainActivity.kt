@@ -38,6 +38,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.OffsetMapping
 
 // --- 1. DATA LAYER (V6: Multi-Row Income Streams) ---
 
@@ -126,30 +129,48 @@ class MainActivity : ComponentActivity() {
                             TotalPoolCard(totalPoolAmount)
                         }
 
-                        item { Text("Income Streams", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) }
-
                         // (2) MULTIPLE INCOME DETAILS CARDS
-                        if (streams.isEmpty()) {
-                            item {
-                                OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                                    Box(modifier = Modifier.padding(24.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                        Text("No income sources configured yet.", style = MaterialTheme.typography.bodyMedium)
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Income",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp)
+                                        )
+                                    if (streams.isEmpty()) {
+                                        Box(
+                                            modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("No income sources configured yet.", style = MaterialTheme.typography.bodyMedium)
+                                        }
+                                    } else {
+                                        streams.forEachIndexed { index, stream ->
+                                            IncomeDetailsCard(
+                                                stream = stream,
+                                                onClick = {
+                                                    editingStream = stream
+                                                    showSheet = true
+                                                },
+                                                onDelete = { viewModel.deleteIncomeStream(stream) }
+                                            )
+                                            // Adds a subtle dividing line between rows, but skips the very last item
+                                            if (index < streams.lastIndex) {
+                                                HorizontalDivider(
+                                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        } else {
-                            items(streams) { stream ->
-                                IncomeDetailsCard(
-                                    stream = stream,
-                                    onClick = {
-                                        editingStream = stream // Pass existing item to switch sheet to EDIT mode
-                                        showSheet = true
-                                    },
-                                    onDelete = { viewModel.deleteIncomeStream(stream) }
-                                )
-                            }
                         }
-
                         // (3) THE BUTTON TO CREATE FROM SCRATCH
                         item {
                             Button(
@@ -180,6 +201,10 @@ class MainActivity : ComponentActivity() {
                                     frequency = frequency
                                 )
                                 viewModel.saveIncomeStream(streamToSave)
+                                showSheet = false
+                            },
+                            onDelete = {
+                                editingStream?.let { viewModel.deleteIncomeStream(it)}
                                 showSheet = false
                             }
                         )
@@ -212,36 +237,17 @@ fun TotalPoolCard(total: Double) {
 
 @Composable
 fun IncomeDetailsCard(stream: IncomeStream, onClick: () -> Unit, onDelete: () -> Unit) {
-    OutlinedCard(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(stream.sourceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Text("Cycle Window: ${stream.frequency}", style = MaterialTheme.typography.bodyMedium)
-                Text("Amount: $${"%,.2f".format(stream.amount)}", style = MaterialTheme.typography.labelMedium)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(8.dp)
-                )
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete Source",
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
+        // REMOVED: Right-side action rows are gone. Content now fills the space cleanly.
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(stream.sourceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Text("Cycle Window: ${stream.frequency}", style = MaterialTheme.typography.bodyMedium)
+            Text("Amount: $${"%,.2f".format(stream.amount)}", style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -251,11 +257,11 @@ fun IncomeDetailsCard(stream: IncomeStream, onClick: () -> Unit, onDelete: () ->
 fun IncomeEntrySheet(
     targetStream: IncomeStream?,
     onDismiss: () -> Unit,
-    onConfirm: (String, Double, String) -> Unit
+    onConfirm: (String, Double, String) -> Unit,
+    onDelete: () -> Unit
 ) {
     var source by remember { mutableStateOf(targetStream?.sourceName ?: "") }
     var amount by remember { mutableStateOf(targetStream?.amount?.let { if (it == 0.0) "" else it.toString() } ?: "") }
-
     var frequency by remember { mutableStateOf(targetStream?.frequency ?: "Please Enter Frequency") }
 
     val frequencies = listOf("Weekly", "Bi-Weekly", "Monthly")
@@ -275,7 +281,6 @@ fun IncomeEntrySheet(
         Column(
             modifier = Modifier
                 .padding(16.dp)
-                // INJECTION: Allows the form to scroll dynamically if the keyboard squeezes the screen space
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -286,6 +291,7 @@ fun IncomeEntrySheet(
                 fontWeight = FontWeight.Bold
             )
 
+            // RESTORED: The original Income Source Name field with focus-forward action
             OutlinedTextField(
                 value = source,
                 onValueChange = { source = it },
@@ -296,13 +302,20 @@ fun IncomeEntrySheet(
                 singleLine = true
             )
 
+            // FIXED: The single Paycheck Amount field featuring your live comma transformation mask
             OutlinedTextField(
                 value = amount,
-                onValueChange = { amount = it },
+                onValueChange = { input ->
+                    if (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' }) {
+                        amount = input
+                    }
+                },
                 label = { Text("Paycheck Amount") },
-                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("$0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                visualTransformation = ThousandsSeparatorTransformation(),
+                modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
 
@@ -348,6 +361,80 @@ fun IncomeEntrySheet(
             ) {
                 Text(if (targetStream != null) "Save Changes" else "Add Source to Pool")
             }
+
+            if (targetStream != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                TextButton(
+                    onClick = onDelete,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(
+                        text = "Delete income",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
         }
+    }
+}
+
+class ThousandsSeparatorTransformation : VisualTransformation {
+    override fun filter(text: androidx.compose.ui.text.AnnotatedString): TransformedText {
+        val originalText = text.text
+        if (originalText.isBlank()) return TransformedText(text, OffsetMapping.Identity)
+
+        // Separate whole number and decimal portions
+        val parts = originalText.split(".")
+        val intPart = parts[0]
+        val hasDecimal = originalText.contains(".")
+        val decPart = if (parts.size > 1) parts[1] else ""
+
+        // Build formatted whole number section with commas
+        val formattedInt = intPart.reversed()
+            .chunked(3)
+            .joinToString(",")
+            .reversed()
+
+        val formattedText = buildString {
+            append(formattedInt)
+            if (hasDecimal) append(".")
+            append(decPart)
+        }
+
+        // Map cursor position shifts caused by injected commas
+        val offsetMapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                if (offset <= 0) return 0
+                val subStr = originalText.substring(0, offset).split(".")[0]
+                val commasBefore = (subStr.length - 1) / 3
+
+                // If cursor passes a decimal point, offset math shifts back to simple additive mapping
+                val decimalIndex = originalText.indexOf('.')
+                return if (decimalIndex != -1 && offset > decimalIndex) {
+                    val wholeNumberCommas = (decimalIndex - 1) / 3
+                    offset + wholeNumberCommas
+                } else {
+                    offset + commasBefore
+                }
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                val decimalIndexTransformed = formattedText.indexOf('.')
+                val actualOffset = if (decimalIndexTransformed != -1 && offset > decimalIndexTransformed) {
+                    val subStrInt = formattedText.substring(0, decimalIndexTransformed)
+                    val commasBefore = subStrInt.count { it == ',' }
+                    offset - commasBefore
+                } else {
+                    val subStr = formattedText.substring(0, offset.coerceAtMost(formattedText.length))
+                    val commasBefore = subStr.count { it == ',' }
+                    offset - commasBefore
+                }
+                return actualOffset.coerceIn(0, originalText.length)
+            }
+        }
+
+        return TransformedText(androidx.compose.ui.text.AnnotatedString(formattedText), offsetMapping)
     }
 }

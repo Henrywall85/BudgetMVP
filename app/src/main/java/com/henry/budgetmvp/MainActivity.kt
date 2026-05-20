@@ -138,6 +138,12 @@ class MainActivity : ComponentActivity() {
                                         style = MaterialTheme.typography.titleMedium,
                                         modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp)
                                     )
+
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 8.dp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f)
+                                    )
+
                                     if (streams.isEmpty()) {
                                         Box(
                                             modifier = Modifier.padding(24.dp).fillMaxWidth(),

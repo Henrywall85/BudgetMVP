@@ -1,5 +1,8 @@
 package com.henry.budgetmvp
 
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -38,6 +41,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.style.TextAlign
 
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
 // --- 1. DATA LAYER (V6: Multi-Row Income Streams) ---
 
 @Entity(tableName = "multi_income_table")
@@ -45,7 +54,8 @@ data class IncomeStream(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val sourceName: String,
     val amount: Double,
-    val frequency: String
+    val frequency: String,
+    val lastPayday: String
 )
 
 @Dao
@@ -60,7 +70,7 @@ interface IncomeDao {
     suspend fun deleteIncomeStream(stream: IncomeStream)
 }
 
-@Database(entities = [IncomeStream::class], version = 6, exportSchema = false)
+@Database(entities = [IncomeStream::class], version = 7, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun incomeDao(): IncomeDao
 }
@@ -193,12 +203,13 @@ class MainActivity : ComponentActivity() {
                         IncomeEntrySheet(
                             targetStream = editingStream,
                             onDismiss = { showSheet = false },
-                            onConfirm = { sourceName, amount, frequency ->
+                            onConfirm = { sourceName, amount, frequency, selectedDate ->
                                 val streamToSave = IncomeStream(
                                     id = editingStream?.id ?: 0,
                                     sourceName = sourceName,
                                     amount = amount,
-                                    frequency = frequency
+                                    frequency = frequency,
+                                    lastPayday = selectedDate
                                 )
                                 viewModel.saveIncomeStream(streamToSave)
                                 showSheet = false
@@ -246,6 +257,7 @@ fun TotalPoolCard(total: Double) {
 
 @Composable
 fun IncomeDetailsCard(stream: IncomeStream, onClick: () -> Unit, onDelete: () -> Unit) {
+    val nextPayDate = calculateNextPayday(stream.lastPayday, stream.frequency)
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -253,7 +265,19 @@ fun IncomeDetailsCard(stream: IncomeStream, onClick: () -> Unit, onDelete: () ->
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            Text(stream.sourceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(stream.sourceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = "Next: ${calculateNextPayday(stream.lastPayday, stream.frequency)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
             Text("Cycle Window: ${stream.frequency}", style = MaterialTheme.typography.bodyMedium)
             Text("Amount: $${"%,.2f".format(stream.amount)}", style = MaterialTheme.typography.labelMedium)
         }
@@ -265,12 +289,16 @@ fun IncomeDetailsCard(stream: IncomeStream, onClick: () -> Unit, onDelete: () ->
 fun IncomeEntrySheet(
     targetStream: IncomeStream?,
     onDismiss: () -> Unit,
-    onConfirm: (String, Double, String) -> Unit,
+    onConfirm: (String, Double, String, String) -> Unit,
     onDelete: () -> Unit
 ) {
     var source by remember { mutableStateOf(targetStream?.sourceName ?: "") }
     var amount by remember { mutableStateOf(targetStream?.amount?.let { if (it == 0.0) "" else it.toString() } ?: "") }
     var frequency by remember { mutableStateOf(targetStream?.frequency ?: "Please Enter Frequency") }
+    var lastPayday by remember { mutableStateOf(targetStream?.lastPayday ?: LocalDate.now().toString()) }
+
+    var selectedDateIso by remember { mutableStateOf(targetStream?.lastPayday ?: LocalDate.now().toString()) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     val frequencies = listOf("Weekly", "Bi-Weekly", "Monthly")
     var expanded by remember { mutableStateOf(false) }
@@ -285,7 +313,16 @@ fun IncomeEntrySheet(
         derivedStateOf {
             source.isNotBlank() &&
                     (amount.toDoubleOrNull() ?: 0.0) > 0 &&
-                    frequency != "Please Enter Frequency"
+                    frequency != "Please Enter Frequency" &&
+                    lastPayday.isNotBlank()
+        }
+    }
+
+    val displayDateStr = remember(selectedDateIso) {
+        try {
+            LocalDate.parse(selectedDateIso).format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
+        } catch (e: Exception) {
+            selectedDateIso
         }
     }
 
@@ -333,6 +370,29 @@ fun IncomeEntrySheet(
                 singleLine = true
             )
 
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = displayDateStr,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Last Payday Date") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    )
+                )
+                // Transparent click catcher layer draped directly over the input box area
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable {
+                            focusManager.clearFocus()
+                            showDatePicker = true
+                        }
+                )
+            }
+
             ExposedDropdownMenuBox(
                 expanded = expanded,
                 onExpandedChange = { expanded = !expanded }
@@ -366,7 +426,7 @@ fun IncomeEntrySheet(
             Button(
                 onClick = {
                     val amt = amount.toDoubleOrNull() ?: 0.0
-                    if (isFormValid) onConfirm(source, amt, frequency)
+                    if (isFormValid) onConfirm(source, amt, frequency, selectedDateIso)
                 },
                 enabled = isFormValid,
                 modifier = Modifier
@@ -392,7 +452,45 @@ fun IncomeEntrySheet(
             }
         }
     }
+
+    // INJECTION: Core Material 3 Overlay Calendar Modal Element
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = LocalDate.parse(selectedDateIso)
+                .atStartOfDay(ZoneOffset.UTC)
+                .toInstant()
+                .toEpochMilli()
+        )
+
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            selectedDateIso = Instant.ofEpochMilli(millis)
+                                .atZone(ZoneOffset.UTC)
+                                .toLocalDate()
+                                .toString()
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("Select")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 }
+
+
 
 class ThousandsSeparatorTransformation : VisualTransformation {
     override fun filter(text: androidx.compose.ui.text.AnnotatedString): TransformedText {
@@ -446,5 +544,35 @@ class ThousandsSeparatorTransformation : VisualTransformation {
         }
 
         return TransformedText(androidx.compose.ui.text.AnnotatedString(formattedText), offsetMapping)
+    }
+}
+
+fun calculateNextPayday(lastPaydayStr: String, frequency: String): String {
+    return try {
+        val lastDate = LocalDate.parse(lastPaydayStr)
+        val today = LocalDate.now()
+
+        // Project forward until we find the first cycle date that lands in the future
+        var nextDate = when (frequency) {
+            "Weekly" -> lastDate.plusWeeks(1)
+            "Bi-Weekly" -> lastDate.plusWeeks(2)
+            "Monthly" -> lastDate.plusMonths(1)
+            else -> lastDate
+        }
+
+        // Catch-up mechanic: If the last payday entered was weeks ago, project it forward
+        while (nextDate.isBefore(today)) {
+            nextDate = when (frequency) {
+                "Weekly" -> nextDate.plusWeeks(1)
+                "Bi-Weekly" -> nextDate.plusWeeks(2)
+                "Monthly" -> nextDate.plusMonths(1)
+                else -> nextDate
+            }
+        }
+
+        val displayFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy")
+        nextDate.format(displayFormatter)
+    } catch (e: Exception) {
+        "Pending Date"
     }
 }

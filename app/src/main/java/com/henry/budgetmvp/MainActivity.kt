@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -155,11 +156,36 @@ class MainActivity : ComponentActivity() {
                                     )
 
                                     if (streams.isEmpty()) {
-                                        Box(
-                                            modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                                            contentAlignment = Alignment.Center
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(24.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(12.dp)
                                         ) {
-                                            Text("No income sources configured yet.", style = MaterialTheme.typography.bodyMedium)
+                                            Text(
+                                                text = "No income sources configured yet.",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                            )
+
+                                            OutlinedButton(
+                                                onClick = {
+                                                    editingStream = null
+                                                    showSheet = true
+                                                },
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    contentColor = MaterialTheme.colorScheme.primary
+                                                ),
+                                                border = BorderStroke(
+                                                    width = 1.dp,
+                                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                                                )
+                                            ) {
+                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text("Get Started")
+                                            }
                                         }
                                     } else {
                                         streams.forEachIndexed { index, stream ->
@@ -178,23 +204,30 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             }
                                         }
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    editingStream = null
+                                                    showSheet = true
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f) // Adapts beautifully to text color
+                                                ),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                                            ) {
+                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("Add Income Source", style = MaterialTheme.typography.labelLarge)
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                        }
-                        // (3) THE BUTTON TO CREATE FROM SCRATCH
-                        item {
-                            Button(
-                                onClick = {
-                                    editingStream = null
-                                    showSheet = true
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Add New Income Source")
                             }
                         }
                     }

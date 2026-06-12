@@ -42,6 +42,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.style.TextAlign
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import android.app.Activity
+import androidx.core.view.WindowCompat
+
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -120,9 +126,36 @@ class MainActivity : ComponentActivity() {
             var showSheet by remember { mutableStateOf(false) }
             var editingStream by remember { mutableStateOf<IncomeStream?>(null) }
 
-            MaterialTheme {
+            val budgetColorScheme = lightColorScheme(
+                background = Color(0xFFF9F8F3),
+                surface = Color(0xFFF9F8F3),
+                primary = Color(0xFF1B3B32),
+                primaryContainer = Color(0xFFE2EDE4),
+                onPrimaryContainer = Color(0xFF0F241F),
+                surfaceVariant = Color(0xFFF0EDE4),
+                onSurfaceVariant = Color(0xFF434946)
+            )
+
+            MaterialTheme(colorScheme = budgetColorScheme) {
+                val view = LocalView.current
+                if (!view.isInEditMode) {
+                    SideEffect {
+                        val window = (view.context as Activity).window
+                        window.statusBarColor = budgetColorScheme.background.toArgb()
+                        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
+                    }
+                }
+
                 Scaffold(
-                    topBar = { CenterAlignedTopAppBar(title = { Text("PAYCHECK BUDGET", fontWeight = FontWeight.Bold) }) }
+                    topBar = {
+                        CenterAlignedTopAppBar(
+                            title = { Text("PAYCHECK BUDGET", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium) },
+                            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                                containerColor = budgetColorScheme.background
+                            )
+                        )
+                    },
+                    containerColor = budgetColorScheme.background
                 ) { padding ->
                     LazyColumn(
                         modifier = Modifier

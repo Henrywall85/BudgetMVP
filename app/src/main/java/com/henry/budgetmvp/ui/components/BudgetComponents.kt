@@ -34,18 +34,24 @@ import java.time.format.DateTimeFormatter
 fun TotalPoolCard(total: Double) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Total Funds Available (Ready to Assign)",
+                text = "Total Funds Available",
                 style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -65,7 +71,7 @@ fun IncomeDetailsCard(stream: IncomeStream, onClick: () -> Unit, onDelete: () ->
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -73,16 +79,46 @@ fun IncomeDetailsCard(stream: IncomeStream, onClick: () -> Unit, onDelete: () ->
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(stream.sourceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    text = "Next: ${calculateNextPayday(stream.lastPayday, stream.frequency)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
+                    text = stream.sourceName,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = "Next: ${calculateNextPayday(stream.lastPayday, stream.frequency)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stream.frequency,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "•",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "$${"%,.2f".format(stream.amount)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
-            Text("Cycle Window: ${stream.frequency}", style = MaterialTheme.typography.bodyMedium)
-            Text("Amount: $${"%,.2f".format(stream.amount)}", style = MaterialTheme.typography.labelMedium)
         }
     }
 }

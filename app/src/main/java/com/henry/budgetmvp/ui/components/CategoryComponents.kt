@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.henry.budgetmvp.data.BudgetCategory
 import com.henry.budgetmvp.data.EnvelopeItem
@@ -35,35 +36,41 @@ fun CategoryHeader(
     onEditCategory: () -> Unit,
     onAddItem: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onToggleExpand() }
-            .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-            Icon(
-                imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                contentDescription = if (isExpanded) "Collapse" else "Expand",
-                modifier = Modifier.size(24.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = category.name.uppercase(),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
-        }
-        Row {
-            IconButton(onClick = onAddItem) {
-                Icon(Icons.Default.Add, contentDescription = "Add Item", modifier = Modifier.size(20.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onToggleExpand() }
+                .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = category.name.uppercase(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
-            IconButton(onClick = onEditCategory) {
-                Icon(Icons.Default.MoreVert, contentDescription = "Edit Category", modifier = Modifier.size(20.dp))
+            Row {
+                IconButton(onClick = onAddItem) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Item", modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = onEditCategory) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Edit Category", modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                }
             }
         }
     }
@@ -75,7 +82,7 @@ fun EnvelopeItemRow(item: EnvelopeItem, spentAmount: Double, onClick: () -> Unit
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Column {
             Row(
@@ -83,47 +90,63 @@ fun EnvelopeItemRow(item: EnvelopeItem, spentAmount: Double, onClick: () -> Unit
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(item.name, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = item.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = "planned",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "$${"%,.2f".format(item.targetAmount)}",
                         style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
             
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             
             val progress = if (item.targetAmount > 0) (spentAmount / item.targetAmount).toFloat().coerceIn(0f, 1f) else 0f
             LinearProgressIndicator(
                 progress = { progress },
-                modifier = Modifier.fillMaxWidth().height(6.dp),
-                color = if (spentAmount > item.targetAmount) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                modifier = Modifier.fillMaxWidth().height(8.dp),
+                color = if (spentAmount > item.targetAmount) Color(0xFFDC2626) else Color(0xFF059669),
+                trackColor = Color(0xFFE5E7EB),
                 strokeCap = StrokeCap.Round
             )
             
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = "$${"%,.2f".format(spentAmount)} spent",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
                 )
                 if (spentAmount > item.targetAmount) {
                     Text(
                         text = "Over by $${"%,.2f".format(spentAmount - item.targetAmount)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color(0xFFDC2626),
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    val remaining = item.targetAmount - spentAmount
+                    Text(
+                        text = "$${"%,.2f".format(remaining)} left",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color(0xFF059669),
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }

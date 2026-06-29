@@ -6,12 +6,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +37,10 @@ import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.ui.components.*
 import com.henry.budgetmvp.viewmodel.BudgetViewModel
+
+enum class Screen {
+    BUDGET, TRANSACTIONS
+}
 
 class MainActivity : ComponentActivity() {
     private val db by lazy {
@@ -58,6 +65,8 @@ class MainActivity : ComponentActivity() {
             val categoriesWithItems by viewModel.categoriesWithItems.collectAsState(initial = emptyList())
             val transactions by viewModel.transactions.collectAsState(initial = emptyList())
 
+            var currentScreen by remember { mutableStateOf(Screen.BUDGET) }
+
             var showIncomeSheet by remember { mutableStateOf(false) }
             var editingStream by remember { mutableStateOf<IncomeStream?>(null) }
 
@@ -77,18 +86,18 @@ class MainActivity : ComponentActivity() {
             var editingItem by remember { mutableStateOf<EnvelopeItem?>(null) }
             var activeCategoryId by remember { mutableStateOf<Int?>(null) }
 
-            var showTransactionSheet by remember { mutableStateOf(false) }
-
             val collapsedCategories = remember { mutableStateListOf<Int>() }
 
             val budgetColorScheme = lightColorScheme(
-                background = Color(0xFFF9F8F3),
-                surface = Color(0xFFF9F8F3),
-                primary = Color(0xFF1B3B32),
-                primaryContainer = Color(0xFFD6E4D9),
-                onPrimaryContainer = Color(0xFF0F241F),
-                surfaceVariant = Color(0xFFECEADF),
-                onSurfaceVariant = Color(0xFF3F4441)
+                background = Color(0xFFF3F4F6),
+                surface = Color(0xFFFFFFFF),
+                primary = Color(0xFF111827),
+                primaryContainer = Color(0xFFF9FAFB),
+                onPrimaryContainer = Color(0xFF111827),
+                surfaceVariant = Color(0xFFFFFFFF),
+                onSurfaceVariant = Color(0xFF374151),
+                onSurface = Color(0xFF111827),
+                outline = Color(0xFFE5E7EB)
             )
 
             MaterialTheme(colorScheme = budgetColorScheme) {
@@ -104,240 +113,316 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     topBar = {
                         CenterAlignedTopAppBar(
-                            title = { Text("PAYCHECK BUDGET", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium) },
+                            title = {
+                                Text(
+                                    text = if (currentScreen == Screen.BUDGET) "PAYCHECK BUDGET" else "TRANSACTIONS",
+                                    fontWeight = FontWeight.Black,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            },
                             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = budgetColorScheme.background)
                         )
                     },
-                    floatingActionButton = {
-                        FloatingActionButton(
-                            onClick = { showTransactionSheet = true },
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
+                    bottomBar = {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 8.dp,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 16.dp),
+                                modifier = Modifier
+                                    .navigationBarsPadding()
+                                    .height(80.dp)
+                                    .fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Add Transaction")
+                                // Budget Button
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clickable { currentScreen = Screen.BUDGET },
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AccountBalanceWallet,
+                                        contentDescription = "Budget",
+                                        modifier = Modifier.size(28.dp),
+                                        tint = if (currentScreen == Screen.BUDGET) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "Budget",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (currentScreen == Screen.BUDGET) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                // Transactions Button
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clickable { currentScreen = Screen.TRANSACTIONS },
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AttachMoney,
+                                        contentDescription = "Transactions",
+                                        modifier = Modifier.size(28.dp),
+                                        tint = if (currentScreen == Screen.TRANSACTIONS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "Transactions",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (currentScreen == Screen.TRANSACTIONS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     },
                     containerColor = budgetColorScheme.background
                 ) { padding ->
-                    LazyColumn(
-                        modifier = Modifier
-                            .padding(padding)
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // (1) THE TOTAL POOL CARD
-                        item {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            TotalPoolCard(unassignedFunds)
-                        }
-
-                        // (2) MULTIPLE INCOME DETAILS CARDS
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    Box(modifier = Modifier.padding(padding)) {
+                        if (currentScreen == Screen.BUDGET) {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(20.dp),
+                                contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)
                             ) {
-                                Column {
-                                    Text(
-                                        text = "Income",
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp)
-                                    )
+                                // (1) THE TOTAL POOL CARD
+                                item {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    TotalPoolCard(unassignedFunds)
+                                }
 
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 8.dp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f)
-                                    )
-
-                                    if (streams.isEmpty()) {
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth().padding(24.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
+                                // (2) MULTIPLE INCOME DETAILS CARDS
+                                item {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                                    ) {
+                                        Column {
                                             Text(
-                                                text = "No income sources configured yet.",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                                text = "INCOME SOURCES",
+                                                fontWeight = FontWeight.ExtraBold,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 12.dp),
+                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
                                             )
 
-                                            OutlinedButton(
-                                                onClick = {
-                                                    editingStream = null
-                                                    showIncomeSheet = true
-                                                },
-                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                                            ) {
-                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text("Get Started")
-                                            }
-                                        }
-                                    } else {
-                                        streams.forEachIndexed { index, stream ->
-                                            IncomeDetailsCard(
-                                                stream = stream,
-                                                onClick = {
-                                                    editingStream = stream
-                                                    showIncomeSheet = true
-                                                },
-                                                onDelete = { viewModel.deleteIncomeStream(stream) }
+                                            HorizontalDivider(
+                                                modifier = Modifier.padding(horizontal = 0.dp),
+                                                color = MaterialTheme.colorScheme.outline
                                             )
-                                            if (index < streams.lastIndex) {
-                                                HorizontalDivider(
-                                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
-                                                )
-                                            }
-                                        }
-                                        Box(
-                                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            OutlinedButton(
-                                                onClick = {
-                                                    editingStream = null
-                                                    showIncomeSheet = true
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                                            ) {
-                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Add Income Source", style = MaterialTheme.typography.labelLarge)
+
+                                            if (streams.isEmpty()) {
+                                                Column(
+                                                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "No income sources configured yet.",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                                    )
+
+                                                    OutlinedButton(
+                                                        onClick = {
+                                                            editingStream = null
+                                                            showIncomeSheet = true
+                                                        },
+                                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                                    ) {
+                                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text("Get Started")
+                                                    }
+                                                }
+                                            } else {
+                                                streams.forEachIndexed { index, stream ->
+                                                    IncomeDetailsCard(
+                                                        stream = stream,
+                                                        onClick = {
+                                                            editingStream = stream
+                                                            showIncomeSheet = true
+                                                        },
+                                                        onDelete = { viewModel.deleteIncomeStream(stream) }
+                                                    )
+                                                    if (index < streams.lastIndex) {
+                                                        HorizontalDivider(
+                                                            modifier = Modifier.padding(horizontal = 16.dp),
+                                                            color = MaterialTheme.colorScheme.outline
+                                                        )
+                                                    }
+                                                }
+                                                Box(
+                                                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    OutlinedButton(
+                                                        onClick = {
+                                                            editingStream = null
+                                                            showIncomeSheet = true
+                                                        },
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)),
+                                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                                                    ) {
+                                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Text("Add Income Source", style = MaterialTheme.typography.labelLarge)
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
-                        }
 
-                        // (3) BUDGET CATEGORIES & ENVELOPE ITEMS
-                        if (categoriesWithItems.isEmpty()) {
-                            item {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                                ) {
-                                    Column(
-                                        modifier = Modifier.fillMaxWidth().padding(24.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Text(
-                                            text = "No categories created yet.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                        )
-
-                                        OutlinedButton(
-                                            onClick = {
-                                                editingCategory = null
-                                                showCategorySheet = true
-                                            },
-                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                // (3) BUDGET CATEGORIES & ENVELOPE ITEMS
+                                if (categoriesWithItems.isEmpty()) {
+                                    item {
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                                         ) {
-                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text("Create Category")
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                Text(
+                                                    text = "No categories created yet.",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                                )
+
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        editingCategory = null
+                                                        showCategorySheet = true
+                                                    },
+                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                                ) {
+                                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text("Create Category")
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    items(categoriesWithItems) { categoryWithItems ->
+                                        val isExpanded = !collapsedCategories.contains(categoryWithItems.category.id)
+
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                                        ) {
+                                            Column(modifier = Modifier.padding(bottom = if (isExpanded) 8.dp else 0.dp)) {
+                                                CategoryHeader(
+                                                    category = categoryWithItems.category,
+                                                    isExpanded = isExpanded,
+                                                    onToggleExpand = {
+                                                        if (isExpanded) {
+                                                            collapsedCategories.add(categoryWithItems.category.id)
+                                                        } else {
+                                                            collapsedCategories.remove(categoryWithItems.category.id)
+                                                        }
+                                                    },
+                                                    onEditCategory = {
+                                                        editingCategory = categoryWithItems.category
+                                                        showCategorySheet = true
+                                                    },
+                                                    onAddItem = {
+                                                        activeCategoryId = categoryWithItems.category.id
+                                                        editingItem = null
+                                                        showItemSheet = true
+                                                    }
+                                                )
+
+                                                if (isExpanded) {
+                                                    HorizontalDivider(
+                                                        modifier = Modifier.padding(horizontal = 0.dp),
+                                                        color = MaterialTheme.colorScheme.outline
+                                                    )
+
+                                                    categoryWithItems.items.forEachIndexed { index, item ->
+                                                        val spentAmount = transactions
+                                                            .filter { it.type == TransactionType.EXPENSE && it.itemId == item.id }
+                                                            .sumOf { it.amount }
+
+                                                        EnvelopeItemRow(
+                                                            item = item,
+                                                            spentAmount = spentAmount,
+                                                            onClick = {
+                                                                activeCategoryId = categoryWithItems.category.id
+                                                                editingItem = item
+                                                                showItemSheet = true
+                                                            }
+                                                        )
+                                                        if (index < categoryWithItems.items.lastIndex) {
+                                                            HorizontalDivider(
+                                                                modifier = Modifier.padding(horizontal = 16.dp),
+                                                                color = MaterialTheme.colorScheme.outline
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    item {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    editingCategory = null
+                                                    showCategorySheet = true
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                                            ) {
+                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("Add New Category", style = MaterialTheme.typography.labelLarge)
+                                            }
                                         }
                                     }
                                 }
                             }
                         } else {
-                            items(categoriesWithItems) { categoryWithItems ->
-                                val isExpanded = !collapsedCategories.contains(categoryWithItems.category.id)
-
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                                ) {
-                                    Column(modifier = Modifier.padding(bottom = if (isExpanded) 8.dp else 0.dp)) {
-                                        CategoryHeader(
-                                            category = categoryWithItems.category,
-                                            isExpanded = isExpanded,
-                                            onToggleExpand = {
-                                                if (isExpanded) {
-                                                    collapsedCategories.add(categoryWithItems.category.id)
-                                                } else {
-                                                    collapsedCategories.remove(categoryWithItems.category.id)
-                                                }
-                                            },
-                                            onEditCategory = {
-                                                editingCategory = categoryWithItems.category
-                                                showCategorySheet = true
-                                            },
-                                            onAddItem = {
-                                                activeCategoryId = categoryWithItems.category.id
-                                                editingItem = null
-                                                showItemSheet = true
-                                            }
-                                        )
-
-                                        if (isExpanded) {
-                                            HorizontalDivider(
-                                                modifier = Modifier.padding(horizontal = 16.dp),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f)
-                                            )
-
-                                            categoryWithItems.items.forEachIndexed { index, item ->
-                                                val spentAmount = transactions
-                                                    .filter { it.type == TransactionType.EXPENSE && it.itemId == item.id }
-                                                    .sumOf { it.amount }
-
-                                                EnvelopeItemRow(
-                                                    item = item,
-                                                    spentAmount = spentAmount,
-                                                    onClick = {
-                                                        activeCategoryId = categoryWithItems.category.id
-                                                        editingItem = item
-                                                        showItemSheet = true
-                                                    }
-                                                )
-                                                if (index < categoryWithItems.items.lastIndex) {
-                                                    HorizontalDivider(
-                                                        modifier = Modifier.padding(horizontal = 16.dp),
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
+                            TransactionPage(
+                                categoriesWithItems = categoriesWithItems,
+                                onConfirm = { type, amount, date, itemId ->
+                                    val transaction = BudgetTransaction(
+                                        type = type,
+                                        amount = amount,
+                                        date = date,
+                                        itemId = itemId
+                                    )
+                                    viewModel.saveTransaction(transaction)
+                                    // Optionally show a confirmation toast or navigate back
+                                    currentScreen = Screen.BUDGET
                                 }
-                            }
-
-                            item {
-                                Box(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            editingCategory = null
-                                            showCategorySheet = true
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Add New Category", style = MaterialTheme.typography.labelLarge)
-                                    }
-                                }
-                            }
+                            )
                         }
                     }
 
@@ -401,23 +486,6 @@ class MainActivity : ComponentActivity() {
                             onDelete = {
                                 editingItem?.let { viewModel.deleteEnvelopeItem(it) }
                                 showItemSheet = false
-                            }
-                        )
-                    }
-
-                    if (showTransactionSheet) {
-                        TransactionEntrySheet(
-                            categoriesWithItems = categoriesWithItems,
-                            onDismiss = { showTransactionSheet = false },
-                            onConfirm = { type, amount, date, itemId ->
-                                val transaction = BudgetTransaction(
-                                    type = type,
-                                    amount = amount,
-                                    date = date,
-                                    itemId = itemId
-                                )
-                                viewModel.saveTransaction(transaction)
-                                showTransactionSheet = false
                             }
                         )
                     }

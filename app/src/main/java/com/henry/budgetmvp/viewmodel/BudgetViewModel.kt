@@ -32,4 +32,14 @@ class BudgetViewModel(private val dao: BudgetDao) : ViewModel() {
     fun deleteEnvelopeItem(item: EnvelopeItem) {
         viewModelScope.launch { dao.deleteEnvelopeItem(item) }
     }
+
+    val transactions = dao.getAllTransactions()
+
+    fun saveTransaction(transaction: BudgetTransaction) {
+        viewModelScope.launch { dao.upsertTransaction(transaction) }
+    }
+
+    fun deleteTransaction(transaction: BudgetTransaction) {
+        viewModelScope.launch { dao.deleteTransaction(transaction) }
+    }
 }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +30,8 @@ import com.henry.budgetmvp.data.AppDatabase
 import com.henry.budgetmvp.data.BudgetCategory
 import com.henry.budgetmvp.data.EnvelopeItem
 import com.henry.budgetmvp.data.IncomeStream
+import com.henry.budgetmvp.data.BudgetTransaction
+import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.ui.components.*
 import com.henry.budgetmvp.viewmodel.BudgetViewModel
 
@@ -53,6 +56,7 @@ class MainActivity : ComponentActivity() {
             val streams by viewModel.incomeStreams.collectAsState(initial = emptyList())
             val totalPoolAmount = streams.sumOf { it.amount }
             val categoriesWithItems by viewModel.categoriesWithItems.collectAsState(initial = emptyList())
+            val transactions by viewModel.transactions.collectAsState(initial = emptyList())
 
             var showIncomeSheet by remember { mutableStateOf(false) }
             var editingStream by remember { mutableStateOf<IncomeStream?>(null) }
@@ -72,6 +76,8 @@ class MainActivity : ComponentActivity() {
             var showItemSheet by remember { mutableStateOf(false) }
             var editingItem by remember { mutableStateOf<EnvelopeItem?>(null) }
             var activeCategoryId by remember { mutableStateOf<Int?>(null) }
+
+            var showTransactionSheet by remember { mutableStateOf(false) }
 
             val collapsedCategories = remember { mutableStateListOf<Int>() }
 
@@ -101,6 +107,22 @@ class MainActivity : ComponentActivity() {
                             title = { Text("PAYCHECK BUDGET", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium) },
                             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = budgetColorScheme.background)
                         )
+                    },
+                    floatingActionButton = {
+                        FloatingActionButton(
+                            onClick = { showTransactionSheet = true },
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Add Transaction")
+                            }
+                        }
                     },
                     containerColor = budgetColorScheme.background
                 ) { padding ->
@@ -269,8 +291,13 @@ class MainActivity : ComponentActivity() {
                                             )
 
                                             categoryWithItems.items.forEachIndexed { index, item ->
+                                                val spentAmount = transactions
+                                                    .filter { it.type == TransactionType.EXPENSE && it.itemId == item.id }
+                                                    .sumOf { it.amount }
+
                                                 EnvelopeItemRow(
                                                     item = item,
+                                                    spentAmount = spentAmount,
                                                     onClick = {
                                                         activeCategoryId = categoryWithItems.category.id
                                                         editingItem = item
@@ -371,6 +398,23 @@ class MainActivity : ComponentActivity() {
                             onDelete = {
                                 editingItem?.let { viewModel.deleteEnvelopeItem(it) }
                                 showItemSheet = false
+                            }
+                        )
+                    }
+
+                    if (showTransactionSheet) {
+                        TransactionEntrySheet(
+                            categoriesWithItems = categoriesWithItems,
+                            onDismiss = { showTransactionSheet = false },
+                            onConfirm = { type, amount, date, itemId ->
+                                val transaction = BudgetTransaction(
+                                    type = type,
+                                    amount = amount,
+                                    date = date,
+                                    itemId = itemId
+                                )
+                                viewModel.saveTransaction(transaction)
+                                showTransactionSheet = false
                             }
                         )
                     }

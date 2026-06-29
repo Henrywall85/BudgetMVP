@@ -29,11 +29,20 @@ interface BudgetDao {
 
     @Delete
     suspend fun deleteEnvelopeItem(item: EnvelopeItem)
+
+    @Query("SELECT * FROM transaction_table ORDER BY date DESC")
+    fun getAllTransactions(): Flow<List<BudgetTransaction>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertTransaction(transaction: BudgetTransaction)
+
+    @Delete
+    suspend fun deleteTransaction(transaction: BudgetTransaction)
 }
 
 @Database(
-    entities = [IncomeStream::class, BudgetCategory::class, EnvelopeItem::class],
-    version = 9,
+    entities = [IncomeStream::class, BudgetCategory::class, EnvelopeItem::class, BudgetTransaction::class],
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

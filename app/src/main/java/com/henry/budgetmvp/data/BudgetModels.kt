@@ -40,6 +40,30 @@ data class EnvelopeItem(
     val allocatedAmount: Double = 0.0
 )
 
+@Entity(
+    tableName = "transaction_table",
+    foreignKeys = [
+        ForeignKey(
+            entity = EnvelopeItem::class,
+            parentColumns = ["id"],
+            childColumns = ["itemId"],
+            onDelete = ForeignKey.SET_NULL
+        )
+    ]
+)
+data class BudgetTransaction(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val type: TransactionType,
+    val amount: Double,
+    val date: String,
+    val note: String = "",
+    val itemId: Int? = null // For Expenses
+)
+
+enum class TransactionType {
+    INCOME, EXPENSE
+}
+
 data class CategoryWithItems(
     @Embedded val category: BudgetCategory,
     @Relation(

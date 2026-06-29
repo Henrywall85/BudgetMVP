@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
 import com.henry.budgetmvp.data.BudgetCategory
 import com.henry.budgetmvp.data.EnvelopeItem
@@ -69,31 +70,62 @@ fun CategoryHeader(
 }
 
 @Composable
-fun EnvelopeItemRow(item: EnvelopeItem, onClick: () -> Unit) {
+fun EnvelopeItemRow(item: EnvelopeItem, spentAmount: Double, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(item.name, style = MaterialTheme.typography.bodyLarge)
-            Column(horizontalAlignment = Alignment.End) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(item.name, style = MaterialTheme.typography.bodyLarge)
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "planned",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = "$${"%,.2f".format(item.targetAmount)}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            val progress = if (item.targetAmount > 0) (spentAmount / item.targetAmount).toFloat().coerceIn(0f, 1f) else 0f
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().height(6.dp),
+                color = if (spentAmount > item.targetAmount) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                strokeCap = StrokeCap.Round
+            )
+            
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Text(
-                    text = "planned",
+                    text = "$${"%,.2f".format(spentAmount)} spent",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
-                Text(
-                    text = "$${"%,.2f".format(item.targetAmount)}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                if (spentAmount > item.targetAmount) {
+                    Text(
+                        text = "Over by $${"%,.2f".format(spentAmount - item.targetAmount)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         }
     }

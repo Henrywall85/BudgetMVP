@@ -298,12 +298,12 @@ class MainActivity : ComponentActivity() {
                         EnvelopeEntrySheet(
                             targetEnvelope = editingEnvelope,
                             onDismiss = { showEnvelopeSheet = false },
-                            onConfirm = { name, target, allocated ->
+                            onConfirm = { name, target ->
                                 val envelopeToSave = ExpenseEnvelope(
                                     id = editingEnvelope?.id ?: 0,
                                     name = name,
                                     targetAmount = target,
-                                    allocatedAmount = allocated
+                                    allocatedAmount = editingEnvelope?.allocatedAmount ?: 0.0
                                 )
                                 viewModel.saveEnvelope(envelopeToSave)
                                 showEnvelopeSheet = false

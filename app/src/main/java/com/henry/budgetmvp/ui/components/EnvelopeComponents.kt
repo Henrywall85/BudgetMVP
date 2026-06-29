@@ -8,8 +8,22 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -17,6 +31,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.henry.budgetmvp.data.ExpenseEnvelope
 import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
@@ -27,21 +42,28 @@ fun EnvelopeDetailsRow(envelope: ExpenseEnvelope, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(envelope.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = "$${"%,.2f".format(envelope.allocatedAmount)} / $${"%,.2f".format(envelope.targetAmount)}",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "planned",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = "$${"%,.2f".format(envelope.allocatedAmount)} / $${"%,.2f".format(envelope.targetAmount)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(4.dp))
             val remaining = envelope.targetAmount - envelope.allocatedAmount
@@ -59,12 +81,11 @@ fun EnvelopeDetailsRow(envelope: ExpenseEnvelope, onClick: () -> Unit) {
 fun EnvelopeEntrySheet(
     targetEnvelope: ExpenseEnvelope?,
     onDismiss: () -> Unit,
-    onConfirm: (String, Double, Double) -> Unit,
+    onConfirm: (String, Double) -> Unit,
     onDelete: () -> Unit
 ) {
     var name by remember { mutableStateOf(targetEnvelope?.name ?: "") }
     var targetAmount by remember { mutableStateOf(targetEnvelope?.targetAmount?.let { if (it == 0.0) "" else it.toString() } ?: "") }
-    var allocatedAmount by remember { mutableStateOf(targetEnvelope?.allocatedAmount?.let { if (it == 0.0) "" else it.toString() } ?: "") }
 
     val focusManager = LocalFocusManager.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -72,7 +93,7 @@ fun EnvelopeEntrySheet(
 
     val isFormValid by remember {
         derivedStateOf {
-            name.isNotBlank() && (targetAmount.toDoubleOrNull() ?: 0.0) > 0
+            name.isNotBlank() && ((targetAmount.toDoubleOrNull() ?: 0.0) > 0)
         }
     }
 
@@ -104,23 +125,11 @@ fun EnvelopeEntrySheet(
             OutlinedTextField(
                 value = targetAmount,
                 onValueChange = { input ->
-                    if (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' }) { targetAmount = input }
+                    if (input.count { it == '.' } <= 1 && (input.all { it.isDigit() || it == '.' })) {
+                        targetAmount = input
+                    }
                 },
                 label = { Text("Monthly Target Amount") },
-                placeholder = { Text("$0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
-                visualTransformation = commaTransformation,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            OutlinedTextField(
-                value = allocatedAmount,
-                onValueChange = { input ->
-                    if (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' }) { allocatedAmount = input }
-                },
-                label = { Text("Currently Allocated (Optional)") },
                 placeholder = { Text("$0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
@@ -132,7 +141,7 @@ fun EnvelopeEntrySheet(
             Spacer(modifier = Modifier.height(8.dp))
 
             Button(
-                onClick = { onConfirm(name, targetAmount.toDoubleOrNull() ?: 0.0, allocatedAmount.toDoubleOrNull() ?: 0.0) },
+                onClick = { onConfirm(name, targetAmount.toDoubleOrNull() ?: 0.0) },
                 enabled = isFormValid,
                 modifier = Modifier.fillMaxWidth()
             ) {

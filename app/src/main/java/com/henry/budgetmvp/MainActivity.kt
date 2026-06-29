@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
 
             val unassignedFunds by remember(totalPoolAmount, envelopeList) {
                 derivedStateOf {
-                    totalPoolAmount - envelopeList.sumOf { it.allocatedAmount }
+                    totalPoolAmount - envelopeList.sumOf { it.targetAmount }
                 }
             }
 

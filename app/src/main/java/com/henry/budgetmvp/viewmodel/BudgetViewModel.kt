@@ -2,14 +2,12 @@ package com.henry.budgetmvp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.henry.budgetmvp.data.ExpenseEnvelope
-import com.henry.budgetmvp.data.IncomeDao
-import com.henry.budgetmvp.data.IncomeStream
+import com.henry.budgetmvp.data.*
 import kotlinx.coroutines.launch
 
-class BudgetViewModel(private val dao: IncomeDao) : ViewModel() {
+class BudgetViewModel(private val dao: BudgetDao) : ViewModel() {
     val incomeStreams = dao.getAllIncomeStreams()
-    val envelopes = dao.getAllEnvelopes()
+    val categoriesWithItems = dao.getAllCategoriesWithItems()
 
     fun saveIncomeStream(stream: IncomeStream) {
         viewModelScope.launch { dao.upsertIncomeStream(stream) }
@@ -19,11 +17,19 @@ class BudgetViewModel(private val dao: IncomeDao) : ViewModel() {
         viewModelScope.launch { dao.deleteIncomeStream(stream) }
     }
 
-    fun saveEnvelope(envelope: ExpenseEnvelope) {
-        viewModelScope.launch { dao.upsertEnvelope(envelope) }
+    fun saveCategory(category: BudgetCategory) {
+        viewModelScope.launch { dao.upsertCategory(category) }
     }
 
-    fun deleteEnvelope(envelope: ExpenseEnvelope) {
-        viewModelScope.launch { dao.deleteEnvelope(envelope) }
+    fun deleteCategory(category: BudgetCategory) {
+        viewModelScope.launch { dao.deleteCategory(category) }
+    }
+
+    fun saveEnvelopeItem(item: EnvelopeItem) {
+        viewModelScope.launch { dao.upsertEnvelopeItem(item) }
+    }
+
+    fun deleteEnvelopeItem(item: EnvelopeItem) {
+        viewModelScope.launch { dao.deleteEnvelopeItem(item) }
     }
 }

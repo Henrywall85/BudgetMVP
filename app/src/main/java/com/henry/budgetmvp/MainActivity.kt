@@ -25,7 +25,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.room.Room
 import com.henry.budgetmvp.data.AppDatabase
-import com.henry.budgetmvp.data.ExpenseEnvelope
+import com.henry.budgetmvp.data.BudgetCategory
+import com.henry.budgetmvp.data.EnvelopeItem
 import com.henry.budgetmvp.data.IncomeStream
 import com.henry.budgetmvp.ui.components.*
 import com.henry.budgetmvp.viewmodel.BudgetViewModel
@@ -39,7 +40,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: BudgetViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return BudgetViewModel(db.incomeDao()) as T
+                return BudgetViewModel(db.budgetDao()) as T
             }
         }
     }
@@ -50,19 +51,26 @@ class MainActivity : ComponentActivity() {
         setContent {
             val streams by viewModel.incomeStreams.collectAsState(initial = emptyList())
             val totalPoolAmount = streams.sumOf { it.amount }
-            val envelopeList by viewModel.envelopes.collectAsState(initial = emptyList())
+            val categoriesWithItems by viewModel.categoriesWithItems.collectAsState(initial = emptyList())
 
-            var showSheet by remember { mutableStateOf(false) }
+            var showIncomeSheet by remember { mutableStateOf(false) }
             var editingStream by remember { mutableStateOf<IncomeStream?>(null) }
 
-            val unassignedFunds by remember(totalPoolAmount, envelopeList) {
+            val unassignedFunds by remember(totalPoolAmount, categoriesWithItems) {
                 derivedStateOf {
-                    totalPoolAmount - envelopeList.sumOf { it.targetAmount }
+                    val totalPlanned = categoriesWithItems.sumOf { cat ->
+                        cat.items.sumOf { it.targetAmount }
+                    }
+                    totalPoolAmount - totalPlanned
                 }
             }
 
-            var showEnvelopeSheet by remember { mutableStateOf(false) }
-            var editingEnvelope by remember { mutableStateOf<ExpenseEnvelope?>(null) }
+            var showCategorySheet by remember { mutableStateOf(false) }
+            var editingCategory by remember { mutableStateOf<BudgetCategory?>(null) }
+
+            var showItemSheet by remember { mutableStateOf(false) }
+            var editingItem by remember { mutableStateOf<EnvelopeItem?>(null) }
+            var activeCategoryId by remember { mutableStateOf<Int?>(null) }
 
             val budgetColorScheme = lightColorScheme(
                 background = Color(0xFFF9F8F3),
@@ -139,7 +147,7 @@ class MainActivity : ComponentActivity() {
                                             OutlinedButton(
                                                 onClick = {
                                                     editingStream = null
-                                                    showSheet = true
+                                                    showIncomeSheet = true
                                                 },
                                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
                                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
@@ -155,7 +163,7 @@ class MainActivity : ComponentActivity() {
                                                 stream = stream,
                                                 onClick = {
                                                     editingStream = stream
-                                                    showSheet = true
+                                                    showIncomeSheet = true
                                                 },
                                                 onDelete = { viewModel.deleteIncomeStream(stream) }
                                             )
@@ -173,7 +181,7 @@ class MainActivity : ComponentActivity() {
                                             OutlinedButton(
                                                 onClick = {
                                                     editingStream = null
-                                                    showSheet = true
+                                                    showIncomeSheet = true
                                                 },
                                                 modifier = Modifier.fillMaxWidth(),
                                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)),
@@ -189,15 +197,15 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // (3) UNIFIED EXPENSE ENVELOPES MODULE
+                        // (3) BUDGET CATEGORIES & ENVELOPE ITEMS
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                             ) {
-                                Column {
+                                Column(modifier = Modifier.padding(bottom = 8.dp)) {
                                     Text(
-                                        text = "Expense Envelopes",
+                                        text = "Budget Categories",
                                         fontWeight = FontWeight.Bold,
                                         style = MaterialTheme.typography.titleMedium,
                                         modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp)
@@ -208,62 +216,75 @@ class MainActivity : ComponentActivity() {
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f)
                                     )
 
-                                    if (envelopeList.isEmpty()) {
+                                    if (categoriesWithItems.isEmpty()) {
                                         Column(
                                             modifier = Modifier.fillMaxWidth().padding(24.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                             verticalArrangement = Arrangement.spacedBy(12.dp)
                                         ) {
                                             Text(
-                                                text = "No envelopes created yet.",
+                                                text = "No categories created yet.",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                             )
 
                                             OutlinedButton(
                                                 onClick = {
-                                                    editingEnvelope = null
-                                                    showEnvelopeSheet = true
+                                                    editingCategory = null
+                                                    showCategorySheet = true
                                                 },
                                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                                             ) {
                                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                                                 Spacer(modifier = Modifier.width(8.dp))
-                                                Text("Create Envelope")
+                                                Text("Create Category")
                                             }
                                         }
                                     } else {
-                                        envelopeList.forEachIndexed { index, envelope ->
-                                            EnvelopeDetailsRow(
-                                                envelope = envelope,
-                                                onClick = {
-                                                    editingEnvelope = envelope
-                                                    showEnvelopeSheet = true
+                                        categoriesWithItems.forEach { categoryWithItems ->
+                                            CategoryHeader(
+                                                category = categoryWithItems.category,
+                                                onEditCategory = {
+                                                    editingCategory = categoryWithItems.category
+                                                    showCategorySheet = true
+                                                },
+                                                onAddItem = {
+                                                    activeCategoryId = categoryWithItems.category.id
+                                                    editingItem = null
+                                                    showItemSheet = true
                                                 }
                                             )
-                                            if (index < envelopeList.lastIndex) {
-                                                HorizontalDivider(
-                                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
+                                            categoryWithItems.items.forEach { item ->
+                                                EnvelopeItemRow(
+                                                    item = item,
+                                                    onClick = {
+                                                        activeCategoryId = categoryWithItems.category.id
+                                                        editingItem = item
+                                                        showItemSheet = true
+                                                    }
                                                 )
                                             }
+                                            HorizontalDivider(
+                                                modifier = Modifier.padding(horizontal = 16.dp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
+                                            )
                                         }
 
                                         Box(
-                                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp),
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             OutlinedButton(
                                                 onClick = {
-                                                    editingEnvelope = null
-                                                    showEnvelopeSheet = true
+                                                    editingCategory = null
+                                                    showCategorySheet = true
                                                 },
                                                 modifier = Modifier.fillMaxWidth(),
                                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                                             ) {
                                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Add Expense Envelope", style = MaterialTheme.typography.labelLarge)
+                                                Text("Add New Category", style = MaterialTheme.typography.labelLarge)
                                             }
                                         }
                                     }
@@ -272,10 +293,10 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    if (showSheet) {
+                    if (showIncomeSheet) {
                         IncomeEntrySheet(
                             targetStream = editingStream,
-                            onDismiss = { showSheet = false },
+                            onDismiss = { showIncomeSheet = false },
                             onConfirm = { sourceName, amount, frequency, selectedDate ->
                                 val streamToSave = IncomeStream(
                                     id = editingStream?.id ?: 0,
@@ -285,32 +306,53 @@ class MainActivity : ComponentActivity() {
                                     lastPayday = selectedDate
                                 )
                                 viewModel.saveIncomeStream(streamToSave)
-                                showSheet = false
+                                showIncomeSheet = false
                             },
                             onDelete = {
                                 editingStream?.let { viewModel.deleteIncomeStream(it)}
-                                showSheet = false
+                                showIncomeSheet = false
                             }
                         )
                     }
 
-                    if (showEnvelopeSheet) {
-                        EnvelopeEntrySheet(
-                            targetEnvelope = editingEnvelope,
-                            onDismiss = { showEnvelopeSheet = false },
-                            onConfirm = { name, target ->
-                                val envelopeToSave = ExpenseEnvelope(
-                                    id = editingEnvelope?.id ?: 0,
-                                    name = name,
-                                    targetAmount = target,
-                                    allocatedAmount = editingEnvelope?.allocatedAmount ?: 0.0
+                    if (showCategorySheet) {
+                        CategoryEntrySheet(
+                            targetCategory = editingCategory,
+                            onDismiss = { showCategorySheet = false },
+                            onConfirm = { name ->
+                                val categoryToSave = BudgetCategory(
+                                    id = editingCategory?.id ?: 0,
+                                    name = name
                                 )
-                                viewModel.saveEnvelope(envelopeToSave)
-                                showEnvelopeSheet = false
+                                viewModel.saveCategory(categoryToSave)
+                                showCategorySheet = false
                             },
                             onDelete = {
-                                editingEnvelope?.let { viewModel.deleteEnvelope(it) }
-                                showEnvelopeSheet = false
+                                editingCategory?.let { viewModel.deleteCategory(it) }
+                                showCategorySheet = false
+                            }
+                        )
+                    }
+
+                    if (showItemSheet) {
+                        EnvelopeItemEntrySheet(
+                            categoryId = activeCategoryId ?: 0,
+                            targetItem = editingItem,
+                            onDismiss = { showItemSheet = false },
+                            onConfirm = { name, target ->
+                                val itemToSave = EnvelopeItem(
+                                    id = editingItem?.id ?: 0,
+                                    categoryId = activeCategoryId ?: 0,
+                                    name = name,
+                                    targetAmount = target,
+                                    allocatedAmount = editingItem?.allocatedAmount ?: 0.0
+                                )
+                                viewModel.saveEnvelopeItem(itemToSave)
+                                showItemSheet = false
+                            },
+                            onDelete = {
+                                editingItem?.let { viewModel.deleteEnvelopeItem(it) }
+                                showItemSheet = false
                             }
                         )
                     }

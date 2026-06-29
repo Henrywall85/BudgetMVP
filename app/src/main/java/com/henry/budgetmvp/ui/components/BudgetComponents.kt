@@ -21,7 +21,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.henry.budgetmvp.data.ExpenseEnvelope
 import com.henry.budgetmvp.data.IncomeStream
 import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
 import com.henry.budgetmvp.util.calculateNextPayday

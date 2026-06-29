@@ -4,7 +4,7 @@ import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface IncomeDao {
+interface BudgetDao {
     @Query("SELECT * FROM multi_income_table ORDER BY id ASC")
     fun getAllIncomeStreams(): Flow<List<IncomeStream>>
 
@@ -14,21 +14,28 @@ interface IncomeDao {
     @Delete
     suspend fun deleteIncomeStream(stream: IncomeStream)
 
-    @Query("SELECT * FROM expense_envelope_table ORDER BY name ASC")
-    fun getAllEnvelopes(): Flow<List<ExpenseEnvelope>>
+    @Transaction
+    @Query("SELECT * FROM budget_category_table ORDER BY name ASC")
+    fun getAllCategoriesWithItems(): Flow<List<CategoryWithItems>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertEnvelope(envelope: ExpenseEnvelope)
+    suspend fun upsertCategory(category: BudgetCategory)
 
     @Delete
-    suspend fun deleteEnvelope(envelope: ExpenseEnvelope)
+    suspend fun deleteCategory(category: BudgetCategory)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertEnvelopeItem(item: EnvelopeItem)
+
+    @Delete
+    suspend fun deleteEnvelopeItem(item: EnvelopeItem)
 }
 
 @Database(
-    entities = [IncomeStream::class, ExpenseEnvelope::class],
-    version = 8,
+    entities = [IncomeStream::class, BudgetCategory::class, EnvelopeItem::class],
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
-    abstract fun incomeDao(): IncomeDao
+    abstract fun budgetDao(): BudgetDao
 }

@@ -85,10 +85,10 @@ class MainActivity : ComponentActivity() {
                 background = Color(0xFFF9F8F3),
                 surface = Color(0xFFF9F8F3),
                 primary = Color(0xFF1B3B32),
-                primaryContainer = Color(0xFFE2EDE4),
+                primaryContainer = Color(0xFFD6E4D9),
                 onPrimaryContainer = Color(0xFF0F241F),
-                surfaceVariant = Color(0xFFF0EDE4),
-                onSurfaceVariant = Color(0xFF434946)
+                surfaceVariant = Color(0xFFECEADF),
+                onSurfaceVariant = Color(0xFF3F4441)
             )
 
             MaterialTheme(colorScheme = budgetColorScheme) {
@@ -142,7 +142,8 @@ class MainActivity : ComponentActivity() {
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                             ) {
                                 Column {
                                     Text(
@@ -227,7 +228,8 @@ class MainActivity : ComponentActivity() {
                             item {
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                                 ) {
                                     Column(
                                         modifier = Modifier.fillMaxWidth().padding(24.dp),
@@ -260,7 +262,8 @@ class MainActivity : ComponentActivity() {
 
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                                 ) {
                                     Column(modifier = Modifier.padding(bottom = if (isExpanded) 8.dp else 0.dp)) {
                                         CategoryHeader(

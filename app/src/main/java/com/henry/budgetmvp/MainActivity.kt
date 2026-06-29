@@ -8,6 +8,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
@@ -71,6 +72,8 @@ class MainActivity : ComponentActivity() {
             var showItemSheet by remember { mutableStateOf(false) }
             var editingItem by remember { mutableStateOf<EnvelopeItem?>(null) }
             var activeCategoryId by remember { mutableStateOf<Int?>(null) }
+
+            val collapsedCategories = remember { mutableStateListOf<Int>() }
 
             val budgetColorScheme = lightColorScheme(
                 background = Color(0xFFF9F8F3),
@@ -198,63 +201,74 @@ class MainActivity : ComponentActivity() {
                         }
 
                         // (3) BUDGET CATEGORIES & ENVELOPE ITEMS
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                            ) {
-                                Column(modifier = Modifier.padding(bottom = 8.dp)) {
-                                    Text(
-                                        text = "Budget Categories",
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp)
-                                    )
+                        if (categoriesWithItems.isEmpty()) {
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Text(
+                                            text = "No categories created yet.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                        )
 
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 8.dp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f)
-                                    )
-
-                                    if (categoriesWithItems.isEmpty()) {
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth().padding(24.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                        OutlinedButton(
+                                            onClick = {
+                                                editingCategory = null
+                                                showCategorySheet = true
+                                            },
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                                         ) {
-                                            Text(
-                                                text = "No categories created yet.",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Create Category")
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            items(categoriesWithItems) { categoryWithItems ->
+                                val isExpanded = !collapsedCategories.contains(categoryWithItems.category.id)
+
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                ) {
+                                    Column(modifier = Modifier.padding(bottom = if (isExpanded) 8.dp else 0.dp)) {
+                                        CategoryHeader(
+                                            category = categoryWithItems.category,
+                                            isExpanded = isExpanded,
+                                            onToggleExpand = {
+                                                if (isExpanded) {
+                                                    collapsedCategories.add(categoryWithItems.category.id)
+                                                } else {
+                                                    collapsedCategories.remove(categoryWithItems.category.id)
+                                                }
+                                            },
+                                            onEditCategory = {
+                                                editingCategory = categoryWithItems.category
+                                                showCategorySheet = true
+                                            },
+                                            onAddItem = {
+                                                activeCategoryId = categoryWithItems.category.id
+                                                editingItem = null
+                                                showItemSheet = true
+                                            }
+                                        )
+
+                                        if (isExpanded) {
+                                            HorizontalDivider(
+                                                modifier = Modifier.padding(horizontal = 16.dp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f)
                                             )
 
-                                            OutlinedButton(
-                                                onClick = {
-                                                    editingCategory = null
-                                                    showCategorySheet = true
-                                                },
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                                            ) {
-                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text("Create Category")
-                                            }
-                                        }
-                                    } else {
-                                        categoriesWithItems.forEach { categoryWithItems ->
-                                            CategoryHeader(
-                                                category = categoryWithItems.category,
-                                                onEditCategory = {
-                                                    editingCategory = categoryWithItems.category
-                                                    showCategorySheet = true
-                                                },
-                                                onAddItem = {
-                                                    activeCategoryId = categoryWithItems.category.id
-                                                    editingItem = null
-                                                    showItemSheet = true
-                                                }
-                                            )
-                                            categoryWithItems.items.forEach { item ->
+                                            categoryWithItems.items.forEachIndexed { index, item ->
                                                 EnvelopeItemRow(
                                                     item = item,
                                                     onClick = {
@@ -263,30 +277,34 @@ class MainActivity : ComponentActivity() {
                                                         showItemSheet = true
                                                     }
                                                 )
+                                                if (index < categoryWithItems.items.lastIndex) {
+                                                    HorizontalDivider(
+                                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
+                                                    )
+                                                }
                                             }
-                                            HorizontalDivider(
-                                                modifier = Modifier.padding(horizontal = 16.dp),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
-                                            )
                                         }
+                                    }
+                                }
+                            }
 
-                                        Box(
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            OutlinedButton(
-                                                onClick = {
-                                                    editingCategory = null
-                                                    showCategorySheet = true
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                                            ) {
-                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Add New Category", style = MaterialTheme.typography.labelLarge)
-                                            }
-                                        }
+                            item {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            editingCategory = null
+                                            showCategorySheet = true
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Add New Category", style = MaterialTheme.typography.labelLarge)
                                     }
                                 }
                             }

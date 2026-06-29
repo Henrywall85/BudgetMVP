@@ -9,6 +9,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,22 +29,34 @@ import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
 @Composable
 fun CategoryHeader(
     category: BudgetCategory,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
     onEditCategory: () -> Unit,
     onAddItem: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .clickable { onToggleExpand() }
+            .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = category.name.uppercase(),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = category.name.uppercase(),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
         Row {
             IconButton(onClick = onAddItem) {
                 Icon(Icons.Default.Add, contentDescription = "Add Item", modifier = Modifier.size(20.dp))

@@ -86,6 +86,12 @@ class MainActivity : ComponentActivity() {
             var editingItem by remember { mutableStateOf<EnvelopeItem?>(null) }
             var activeCategoryId by remember { mutableStateOf<Int?>(null) }
 
+            var showItemDetailSheet by remember { mutableStateOf(false) }
+            var selectedItemForDetail by remember { mutableStateOf<EnvelopeItem?>(null) }
+
+            var showTransactionEditSheet by remember { mutableStateOf(false) }
+            var editingTransaction by remember { mutableStateOf<BudgetTransaction?>(null) }
+
             val collapsedCategories = remember { mutableStateListOf<Int>() }
 
             val budgetColorScheme = lightColorScheme(
@@ -370,9 +376,8 @@ class MainActivity : ComponentActivity() {
                                                             item = item,
                                                             spentAmount = spentAmount,
                                                             onClick = {
-                                                                activeCategoryId = categoryWithItems.category.id
-                                                                editingItem = item
-                                                                showItemSheet = true
+                                                                selectedItemForDetail = item
+                                                                showItemDetailSheet = true
                                                             }
                                                         )
                                                         if (index < categoryWithItems.items.lastIndex) {
@@ -486,6 +491,47 @@ class MainActivity : ComponentActivity() {
                             onDelete = {
                                 editingItem?.let { viewModel.deleteEnvelopeItem(it) }
                                 showItemSheet = false
+                            }
+                        )
+                    }
+
+                    if (selectedItemForDetail != null && showItemDetailSheet) {
+                        ItemDetailSheet(
+                            item = selectedItemForDetail!!,
+                            transactions = transactions.filter { it.itemId == selectedItemForDetail!!.id },
+                            onDismiss = { showItemDetailSheet = false },
+                            onEditItem = {
+                                editingItem = selectedItemForDetail
+                                activeCategoryId = selectedItemForDetail!!.categoryId
+                                showItemSheet = true
+                                showItemDetailSheet = false
+                            },
+                            onEditTransaction = { transaction ->
+                                editingTransaction = transaction
+                                showTransactionEditSheet = true
+                                showItemDetailSheet = false
+                            }
+                        )
+                    }
+
+                    if (showTransactionEditSheet && editingTransaction != null) {
+                        TransactionEntrySheet(
+                            targetTransaction = editingTransaction,
+                            categoriesWithItems = categoriesWithItems,
+                            onDismiss = { showTransactionEditSheet = false },
+                            onConfirm = { type, amount, date, itemId ->
+                                val transaction = editingTransaction!!.copy(
+                                    type = type,
+                                    amount = amount,
+                                    date = date,
+                                    itemId = itemId
+                                )
+                                viewModel.saveTransaction(transaction)
+                                showTransactionEditSheet = false
+                            },
+                            onDelete = {
+                                viewModel.deleteTransaction(editingTransaction!!)
+                                showTransactionEditSheet = false
                             }
                         )
                     }

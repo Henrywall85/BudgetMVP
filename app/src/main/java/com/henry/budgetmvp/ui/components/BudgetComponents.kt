@@ -32,6 +32,10 @@ import java.time.format.DateTimeFormatter
 
 @Composable
 fun TotalPoolCard(total: Double) {
+    val dateText = remember { 
+        LocalDate.now().format(DateTimeFormatter.ofPattern("MMMM yyyy"))
+    }
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -46,12 +50,11 @@ fun TotalPoolCard(total: Double) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Total Funds Available",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                text = dateText.uppercase(),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -60,6 +63,14 @@ fun TotalPoolCard(total: Double) {
                 fontWeight = FontWeight.Black,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = "Total Funds Available",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
             )
         }
     }

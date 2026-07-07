@@ -7,6 +7,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.CategoryWithItems
 import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
@@ -39,7 +42,7 @@ fun TransactionPage(
 
     val focusManager = LocalFocusManager.current
     val commaTransformation = remember { ThousandsSeparatorTransformation() }
-
+5
     val isFormValid by remember {
         derivedStateOf {
             val amountValue = amount.toDoubleOrNull() ?: 0.0
@@ -215,19 +218,27 @@ fun TransactionPage(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionEntrySheet(
+    targetTransaction: BudgetTransaction? = null,
     categoriesWithItems: List<CategoryWithItems>,
     onDismiss: () -> Unit,
-    onConfirm: (TransactionType, Double, String, Int?) -> Unit
+    onConfirm: (TransactionType, Double, String, Int?) -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
-    var type by remember { mutableStateOf(TransactionType.EXPENSE) }
-    var amount by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
-    var selectedItemId by remember { mutableStateOf<Int?>(null) }
+    var type by remember { mutableStateOf(targetTransaction?.type ?: TransactionType.EXPENSE) }
+    var amount by remember { mutableStateOf(targetTransaction?.amount?.toString() ?: "") }
+    var note by remember { mutableStateOf(targetTransaction?.note ?: "") }
+    var selectedItemId by remember { mutableStateOf(targetTransaction?.itemId) }
     
     var categoryExpanded by remember { mutableStateOf(false) }
     var itemExpanded by remember { mutableStateOf(false) }
     
-    var selectedCategory by remember { mutableStateOf<CategoryWithItems?>(null) }
+    var selectedCategory by remember { 
+        mutableStateOf(
+            if (targetTransaction?.itemId != null) {
+                categoriesWithItems.find { cat -> cat.items.any { it.id == targetTransaction.itemId } }
+            } else null
+        )
+    }
 
     val focusManager = LocalFocusManager.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -253,7 +264,7 @@ fun TransactionEntrySheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Add Transaction",
+                text = if (targetTransaction == null) "Add Transaction" else "Edit Transaction",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -371,14 +382,26 @@ fun TransactionEntrySheet(
                     onConfirm(
                         type,
                         amount.toDoubleOrNull() ?: 0.0,
-                        LocalDate.now().toString(),
+                        targetTransaction?.date ?: LocalDate.now().toString(),
                         selectedItemId
                     )
                 },
                 enabled = isFormValid,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Add Transaction")
+                Text(if (targetTransaction == null) "Add Transaction" else "Update Transaction")
+            }
+
+            if (targetTransaction != null && onDelete != null) {
+                TextButton(
+                    onClick = onDelete,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Icon(androidx.compose.material.icons.Icons.Default.Delete, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Delete Transaction")
+                }
             }
         }
     }

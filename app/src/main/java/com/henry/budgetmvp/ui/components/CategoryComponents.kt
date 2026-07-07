@@ -25,7 +25,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.henry.budgetmvp.data.BudgetCategory
+import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.EnvelopeItem
+import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
 
 @Composable
@@ -148,6 +150,139 @@ fun EnvelopeItemRow(item: EnvelopeItem, spentAmount: Double, onClick: () -> Unit
                         color = Color(0xFF059669),
                         fontWeight = FontWeight.Medium
                     )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ItemDetailSheet(
+    item: EnvelopeItem,
+    transactions: List<BudgetTransaction>,
+    onDismiss: () -> Unit,
+    onEditItem: () -> Unit,
+    onEditTransaction: (BudgetTransaction) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val spentAmount = transactions.sumOf { it.amount }
+    val remaining = item.targetAmount - spentAmount
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        contentWindowInsets = { WindowInsets(0) }
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+                .padding(bottom = 32.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = item.name,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = onEditItem) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Edit Item")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Summary Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("Planned", style = MaterialTheme.typography.labelSmall)
+                        Text("$${"%,.2f".format(item.targetAmount)}", fontWeight = FontWeight.Bold)
+                    }
+                    Column {
+                        Text("Spent", style = MaterialTheme.typography.labelSmall)
+                        Text("$${"%,.2f".format(spentAmount)}", fontWeight = FontWeight.Bold)
+                    }
+                    Column {
+                        Text("Left", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            "$${"%,.2f".format(remaining)}", 
+                            fontWeight = FontWeight.Bold,
+                            color = if (remaining < 0) Color(0xFFDC2626) else Color(0xFF059669)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "TRANSACTION HISTORY",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (transactions.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No transactions recorded yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+            } else {
+                transactions.forEach { transaction ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onEditTransaction(transaction) }
+                            .padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = transaction.date,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (transaction.note.isNotBlank()) {
+                                Text(
+                                    text = transaction.note,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            } else {
+                                Text(
+                                    text = "Transaction",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                        Text(
+                            text = "$${"%,.2f".format(transaction.amount)}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = if (transaction.type == TransactionType.EXPENSE) Color(0xFFDC2626) else Color(0xFF059669)
+                        )
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
                 }
             }
         }

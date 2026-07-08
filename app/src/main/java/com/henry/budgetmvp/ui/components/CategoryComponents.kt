@@ -263,15 +263,23 @@ fun ItemDetailSheet(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            if (transaction.note.isNotBlank()) {
+                            if (transaction.merchant.isNotBlank()) {
                                 Text(
-                                    text = transaction.note,
-                                    style = MaterialTheme.typography.bodyMedium
+                                    text = transaction.merchant,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
                                 )
                             } else {
                                 Text(
                                     text = "Transaction",
                                     style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                            if (transaction.note.isNotBlank()) {
+                                Text(
+                                    text = transaction.note,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -349,7 +357,7 @@ fun CategoryEntrySheet(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnvelopeItemEntrySheet(
-    categoryId: Int,
+    categoryId: String,
     targetItem: EnvelopeItem?,
     onDismiss: () -> Unit,
     onConfirm: (String, Double) -> Unit,

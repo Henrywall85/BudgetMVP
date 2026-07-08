@@ -28,12 +28,13 @@ import java.time.LocalDate
 @Composable
 fun TransactionPage(
     categoriesWithItems: List<CategoryWithItems>,
-    onConfirm: (TransactionType, Double, String, Int?) -> Unit
+    onConfirm: (TransactionType, Double, String, String, String?) -> Unit
 ) {
     var type by remember { mutableStateOf(TransactionType.EXPENSE) }
     var amount by remember { mutableStateOf("") }
+    var merchant by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
-    var selectedItemId by remember { mutableStateOf<Int?>(null) }
+    var selectedItemId by remember { mutableStateOf<String?>(null) }
 
     var categoryExpanded by remember { mutableStateOf(false) }
     var itemExpanded by remember { mutableStateOf(false) }
@@ -113,6 +114,17 @@ fun TransactionPage(
                     keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
                     visualTransformation = commaTransformation,
                     modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = merchant,
+                    onValueChange = { merchant = it },
+                    label = { Text("Merchant") },
+                    placeholder = { Text("e.g., Walmart, Amazon") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
                     singleLine = true
                 )
 
@@ -198,10 +210,12 @@ fun TransactionPage(
                     type,
                     amount.toDoubleOrNull() ?: 0.0,
                     LocalDate.now().toString(),
+                    merchant,
                     selectedItemId
                 )
                 // Reset form
                 amount = ""
+                merchant = ""
                 note = ""
                 selectedItemId = null
                 selectedCategory = null
@@ -221,11 +235,12 @@ fun TransactionEntrySheet(
     targetTransaction: BudgetTransaction? = null,
     categoriesWithItems: List<CategoryWithItems>,
     onDismiss: () -> Unit,
-    onConfirm: (TransactionType, Double, String, Int?) -> Unit,
+    onConfirm: (TransactionType, Double, String, String, String?) -> Unit,
     onDelete: (() -> Unit)? = null
 ) {
     var type by remember { mutableStateOf(targetTransaction?.type ?: TransactionType.EXPENSE) }
     var amount by remember { mutableStateOf(targetTransaction?.amount?.toString() ?: "") }
+    var merchant by remember { mutableStateOf(targetTransaction?.merchant ?: "") }
     var note by remember { mutableStateOf(targetTransaction?.note ?: "") }
     var selectedItemId by remember { mutableStateOf(targetTransaction?.itemId) }
     
@@ -300,6 +315,17 @@ fun TransactionEntrySheet(
                 keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
                 visualTransformation = commaTransformation,
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            OutlinedTextField(
+                value = merchant,
+                onValueChange = { merchant = it },
+                label = { Text("Merchant") },
+                placeholder = { Text("e.g., Walmart, Amazon") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
                 singleLine = true
             )
 
@@ -383,6 +409,7 @@ fun TransactionEntrySheet(
                         type,
                         amount.toDoubleOrNull() ?: 0.0,
                         targetTransaction?.date ?: LocalDate.now().toString(),
+                        merchant,
                         selectedItemId
                     )
                 },

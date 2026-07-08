@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "133642005096",
+    "project_id": "budgetquest-ed485",
+    "storage_bucket": "budgetquest-ed485.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:133642005096:android:feb032477a974989a6a9dd",
+        "android_client_info": {
+          "package_name": "com.henry.budgetmvp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCwYVzt-H-gqXO7Y592hrxgpFvk0vxwNIU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

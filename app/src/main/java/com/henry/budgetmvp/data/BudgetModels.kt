@@ -5,10 +5,12 @@ import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 import androidx.room.Embedded
 import androidx.room.Relation
+import java.util.UUID
 
 @Entity(tableName = "multi_income_table")
 data class IncomeStream(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val userId: String,
     val sourceName: String,
     val amount: Double,
     val frequency: String,
@@ -17,7 +19,8 @@ data class IncomeStream(
 
 @Entity(tableName = "budget_category_table")
 data class BudgetCategory(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val userId: String,
     val name: String
 )
 
@@ -33,8 +36,9 @@ data class BudgetCategory(
     ]
 )
 data class EnvelopeItem(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val categoryId: Int,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val userId: String,
+    val categoryId: String,
     val name: String,
     val targetAmount: Double,
     val allocatedAmount: Double = 0.0
@@ -52,12 +56,14 @@ data class EnvelopeItem(
     ]
 )
 data class BudgetTransaction(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val userId: String,
     val type: TransactionType,
     val amount: Double,
     val date: String,
+    val merchant: String = "",
     val note: String = "",
-    val itemId: Int? = null // For Expenses
+    val itemId: String? = null // For Expenses
 )
 
 enum class TransactionType {

@@ -16,38 +16,59 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.CategoryWithItems
 import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionPage(
     categoriesWithItems: List<CategoryWithItems>,
-    onConfirm: (TransactionType, Double, String, String, String?) -> Unit
+    incomeStreams: List<com.henry.budgetmvp.data.IncomeStream>,
+    onConfirm: (TransactionType, Double, String, String, String, String?, String?) -> Unit
 ) {
     var type by remember { mutableStateOf(TransactionType.EXPENSE) }
     var amount by remember { mutableStateOf("") }
     var merchant by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var selectedItemId by remember { mutableStateOf<String?>(null) }
+    var selectedIncomeStreamId by remember { mutableStateOf<String?>(null) }
+    var selectedDateIso by remember { mutableStateOf(LocalDate.now().toString()) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     var categoryExpanded by remember { mutableStateOf(false) }
     var itemExpanded by remember { mutableStateOf(false) }
+    var incomeSourceExpanded by remember { mutableStateOf(false) }
 
     var selectedCategory by remember { mutableStateOf<CategoryWithItems?>(null) }
 
     val focusManager = LocalFocusManager.current
     val commaTransformation = remember { ThousandsSeparatorTransformation() }
-5
+
     val isFormValid by remember {
         derivedStateOf {
             val amountValue = amount.toDoubleOrNull() ?: 0.0
-            amountValue > 0 && (type == TransactionType.INCOME || selectedItemId != null)
+            amountValue > 0 && (
+                (type == TransactionType.EXPENSE && selectedItemId != null) || 
+                (type == TransactionType.INCOME && selectedIncomeStreamId != null)
+            )
+        }
+    }
+
+    val displayDateStr = remember(selectedDateIso) {
+        try {
+            LocalDate.parse(selectedDateIso).format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
+        } catch (e: Exception) {
+            selectedDateIso
         }
     }
 
@@ -117,16 +138,64 @@ fun TransactionPage(
                     singleLine = true
                 )
 
-                OutlinedTextField(
-                    value = merchant,
-                    onValueChange = { merchant = it },
-                    label = { Text("Merchant") },
-                    placeholder = { Text("e.g., Walmart, Amazon") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
-                    singleLine = true
-                )
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = displayDateStr,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Transaction Date") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(modifier = Modifier.matchParentSize().clickable { focusManager.clearFocus(); showDatePicker = true })
+                }
+
+                if (type == TransactionType.EXPENSE) {
+                    OutlinedTextField(
+                        value = merchant,
+                        onValueChange = { merchant = it },
+                        label = { Text("Merchant") },
+                        placeholder = { Text("e.g., Walmart, Amazon") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = ImeAction.Next,
+                            capitalization = KeyboardCapitalization.Words
+                        ),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
+                        singleLine = true
+                    )
+                }
+
+                if (type == TransactionType.INCOME) {
+                    ExposedDropdownMenuBox(
+                        expanded = incomeSourceExpanded,
+                        onExpandedChange = { incomeSourceExpanded = it }
+                    ) {
+                        val selectedSource = incomeStreams.find { it.id == selectedIncomeStreamId }
+                        OutlinedTextField(
+                            value = selectedSource?.sourceName ?: "Select Income Source",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Income Source") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = incomeSourceExpanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = incomeSourceExpanded,
+                            onDismissRequest = { incomeSourceExpanded = false }
+                        ) {
+                            incomeStreams.forEach { stream ->
+                                DropdownMenuItem(
+                                    text = { Text(stream.sourceName) },
+                                    onClick = {
+                                        selectedIncomeStreamId = stream.id
+                                        merchant = stream.sourceName // Set merchant to source name for display
+                                        incomeSourceExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
 
                 if (type == TransactionType.EXPENSE) {
                     // Category Selector
@@ -197,7 +266,10 @@ fun TransactionPage(
                     onValueChange = { note = it },
                     label = { Text("Note (Optional)") },
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Done,
+                        capitalization = KeyboardCapitalization.Sentences
+                    ),
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     singleLine = true
                 )
@@ -209,16 +281,20 @@ fun TransactionPage(
                 onConfirm(
                     type,
                     amount.toDoubleOrNull() ?: 0.0,
-                    LocalDate.now().toString(),
+                    selectedDateIso,
                     merchant,
-                    selectedItemId
+                    note,
+                    selectedItemId,
+                    selectedIncomeStreamId
                 )
                 // Reset form
                 amount = ""
                 merchant = ""
                 note = ""
                 selectedItemId = null
+                selectedIncomeStreamId = null
                 selectedCategory = null
+                selectedDateIso = LocalDate.now().toString()
             },
             enabled = isFormValid,
             modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -226,16 +302,44 @@ fun TransactionPage(
         ) {
             Text("SAVE TRANSACTION", fontWeight = FontWeight.Bold)
         }
+
+        if (showDatePicker) {
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = try {
+                    LocalDate.parse(selectedDateIso).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                } catch (e: Exception) {
+                    System.currentTimeMillis()
+                }
+            )
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        datePickerState.selectedDateMillis?.let {
+                            selectedDateIso = Instant.ofEpochMilli(it).atZone(ZoneId.of("UTC")).toLocalDate().toString()
+                        }
+                        showDatePicker = false
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                }
+            ) {
+                DatePicker(state = datePickerState)
+            }
+        }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionEntrySheet(
     targetTransaction: BudgetTransaction? = null,
     categoriesWithItems: List<CategoryWithItems>,
+    incomeStreams: List<com.henry.budgetmvp.data.IncomeStream>,
     onDismiss: () -> Unit,
-    onConfirm: (TransactionType, Double, String, String, String?) -> Unit,
+    onConfirm: (TransactionType, Double, String, String, String, String?, String?) -> Unit,
     onDelete: (() -> Unit)? = null
 ) {
     var type by remember { mutableStateOf(targetTransaction?.type ?: TransactionType.EXPENSE) }
@@ -243,9 +347,13 @@ fun TransactionEntrySheet(
     var merchant by remember { mutableStateOf(targetTransaction?.merchant ?: "") }
     var note by remember { mutableStateOf(targetTransaction?.note ?: "") }
     var selectedItemId by remember { mutableStateOf(targetTransaction?.itemId) }
-    
+    var selectedIncomeStreamId by remember { mutableStateOf(targetTransaction?.incomeStreamId) }
+    var selectedDateIso by remember { mutableStateOf(targetTransaction?.date ?: LocalDate.now().toString()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+
     var categoryExpanded by remember { mutableStateOf(false) }
     var itemExpanded by remember { mutableStateOf(false) }
+    var incomeSourceExpanded by remember { mutableStateOf(false) }
     
     var selectedCategory by remember { 
         mutableStateOf(
@@ -263,6 +371,14 @@ fun TransactionEntrySheet(
         derivedStateOf {
             val amountValue = amount.toDoubleOrNull() ?: 0.0
             amountValue > 0 && (type == TransactionType.INCOME || selectedItemId != null)
+        }
+    }
+
+    val displayDateStr = remember(selectedDateIso) {
+        try {
+            LocalDate.parse(selectedDateIso).format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
+        } catch (e: Exception) {
+            selectedDateIso
         }
     }
 
@@ -318,16 +434,64 @@ fun TransactionEntrySheet(
                 singleLine = true
             )
 
-            OutlinedTextField(
-                value = merchant,
-                onValueChange = { merchant = it },
-                label = { Text("Merchant") },
-                placeholder = { Text("e.g., Walmart, Amazon") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
-                singleLine = true
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = displayDateStr,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Transaction Date") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Box(modifier = Modifier.matchParentSize().clickable { focusManager.clearFocus(); showDatePicker = true })
+            }
+
+            if (type == TransactionType.EXPENSE) {
+                OutlinedTextField(
+                    value = merchant,
+                    onValueChange = { merchant = it },
+                    label = { Text("Merchant") },
+                    placeholder = { Text("e.g., Walmart, Amazon") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Next,
+                        capitalization = KeyboardCapitalization.Words
+                    ),
+                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
+                    singleLine = true
+                )
+            }
+
+            if (type == TransactionType.INCOME) {
+                ExposedDropdownMenuBox(
+                    expanded = incomeSourceExpanded,
+                    onExpandedChange = { incomeSourceExpanded = it }
+                ) {
+                    val selectedSource = incomeStreams.find { it.id == selectedIncomeStreamId }
+                    OutlinedTextField(
+                        value = selectedSource?.sourceName ?: "Select Income Source",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Income Source") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = incomeSourceExpanded) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = incomeSourceExpanded,
+                        onDismissRequest = { incomeSourceExpanded = false }
+                    ) {
+                        incomeStreams.forEach { stream ->
+                            DropdownMenuItem(
+                                text = { Text(stream.sourceName) },
+                                onClick = {
+                                    selectedIncomeStreamId = stream.id
+                                    merchant = stream.sourceName // Set merchant for display in history
+                                    incomeSourceExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
 
             if (type == TransactionType.EXPENSE) {
                 // Category Selector
@@ -398,19 +562,26 @@ fun TransactionEntrySheet(
                 onValueChange = { note = it },
                 label = { Text("Note (Optional)") },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Done,
+                    capitalization = KeyboardCapitalization.Sentences
+                ),
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                 singleLine = true
             )
+
+
 
             Button(
                 onClick = {
                     onConfirm(
                         type,
                         amount.toDoubleOrNull() ?: 0.0,
-                        targetTransaction?.date ?: LocalDate.now().toString(),
+                        selectedDateIso,
                         merchant,
-                        selectedItemId
+                        note,
+                        selectedItemId,
+                        selectedIncomeStreamId
                     )
                 },
                 enabled = isFormValid,
@@ -429,6 +600,32 @@ fun TransactionEntrySheet(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Delete Transaction")
                 }
+            }
+        }
+
+        if (showDatePicker) {
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = try {
+                    LocalDate.parse(selectedDateIso).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                } catch (e: Exception) {
+                    System.currentTimeMillis()
+                }
+            )
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        datePickerState.selectedDateMillis?.let {
+                            selectedDateIso = Instant.ofEpochMilli(it).atZone(ZoneId.of("UTC")).toLocalDate().toString()
+                        }
+                        showDatePicker = false
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                }
+            ) {
+                DatePicker(state = datePickerState)
             }
         }
     }

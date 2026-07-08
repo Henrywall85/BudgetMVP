@@ -42,7 +42,7 @@ interface BudgetDao {
 
 @Database(
     entities = [IncomeStream::class, BudgetCategory::class, EnvelopeItem::class, BudgetTransaction::class],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

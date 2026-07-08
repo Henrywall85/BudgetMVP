@@ -18,10 +18,16 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.material.icons.filled.MoreVert
+import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.IncomeStream
+import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
 import com.henry.budgetmvp.util.calculateNextPayday
 import java.time.Instant
@@ -77,7 +83,12 @@ fun TotalPoolCard(total: Double) {
 }
 
 @Composable
-fun IncomeDetailsCard(stream: IncomeStream, onClick: () -> Unit, onDelete: () -> Unit) {
+fun IncomeDetailsCard(
+    stream: IncomeStream,
+    receivedAmount: Double,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -109,30 +120,182 @@ fun IncomeDetailsCard(stream: IncomeStream, onClick: () -> Unit, onDelete: () ->
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Progress Section
+            val progress = if (stream.amount > 0) (receivedAmount / stream.amount).toFloat().coerceIn(0f, 1f) else 0f
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().height(6.dp),
+                color = Color(0xFF059669),
+                trackColor = Color(0xFFE5E7EB),
+                strokeCap = StrokeCap.Round
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stream.frequency,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "•",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Goal: $${"%,.2f".format(stream.amount)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Text(
-                    text = stream.frequency,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "•",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "$${"%,.2f".format(stream.amount)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    text = "$${"%,.2f".format(receivedAmount)} received",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF059669)
                 )
             }
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun IncomeDetailSheet(
+    stream: IncomeStream,
+    transactions: List<BudgetTransaction>,
+    onDismiss: () -> Unit,
+    onEditStream: () -> Unit,
+    onEditTransaction: (BudgetTransaction) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val receivedAmount = transactions.sumOf { it.amount }
+    val remaining = stream.amount - receivedAmount
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        contentWindowInsets = { WindowInsets(0) }
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+                .padding(bottom = 32.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stream.sourceName,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = onEditStream) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Edit Source")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("Planned", style = MaterialTheme.typography.labelSmall)
+                        Text("$${"%,.2f".format(stream.amount)}", fontWeight = FontWeight.Bold)
+                    }
+                    Column {
+                        Text("Received", style = MaterialTheme.typography.labelSmall)
+                        Text("$${"%,.2f".format(receivedAmount)}", fontWeight = FontWeight.Bold, color = Color(0xFF059669))
+                    }
+                    Column {
+                        Text("Pending", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            "$${"%,.2f".format(if (remaining > 0) remaining else 0.0)}", 
+                            fontWeight = FontWeight.Bold,
+                            color = if (remaining > 0) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF059669)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "PAYMENT HISTORY",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (transactions.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No payments recorded yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+            } else {
+                transactions.forEach { transaction ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onEditTransaction(transaction) }
+                            .padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = transaction.date,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (transaction.merchant.isNotBlank()) transaction.merchant else "Income Payment",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Text(
+                            text = "+$${"%,.2f".format(transaction.amount)}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF059669)
+                        )
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                }
+            }
+        }
+    }
+}
+
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -189,7 +352,10 @@ fun IncomeEntrySheet(
                 onValueChange = { source = it },
                 label = { Text("Income Source Name") },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Next,
+                    capitalization = KeyboardCapitalization.Words
+                ),
                 keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                 singleLine = true
             )

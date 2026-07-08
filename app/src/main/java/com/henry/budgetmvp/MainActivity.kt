@@ -116,6 +116,9 @@ class MainActivity : ComponentActivity() {
 
             var showLogoutDialog by remember { mutableStateOf(false) }
 
+            var showIncomeDetailSheet by remember { mutableStateOf(false) }
+            var selectedStreamForDetail by remember { mutableStateOf<IncomeStream?>(null) }
+
             val collapsedCategories = remember { mutableStateListOf<String>() }
 
             val budgetColorScheme = lightColorScheme(
@@ -319,11 +322,16 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 } else {
                                                     streams.forEachIndexed { index, stream ->
+                                                        val receivedAmount = transactions
+                                                            .filter { it.type == TransactionType.INCOME && it.incomeStreamId == stream.id }
+                                                            .sumOf { it.amount }
+
                                                         IncomeDetailsCard(
                                                             stream = stream,
+                                                            receivedAmount = receivedAmount,
                                                             onClick = {
-                                                                editingStream = stream
-                                                                showIncomeSheet = true
+                                                                selectedStreamForDetail = stream
+                                                                showIncomeDetailSheet = true
                                                             },
                                                             onDelete = { viewModel.deleteIncomeStream(stream) }
                                                         )
@@ -479,14 +487,17 @@ class MainActivity : ComponentActivity() {
                             Screen.TRANSACTIONS -> {
                                 TransactionPage(
                                     categoriesWithItems = categoriesWithItems,
-                                    onConfirm = { type, amount, date, merchant, itemId ->
+                                    incomeStreams = streams,
+                                    onConfirm = { type, amount, date, merchant, note, itemId, incomeStreamId ->
                                         val transaction = BudgetTransaction(
                                             userId = user?.uid ?: "",
                                             type = type,
                                             amount = amount,
                                             date = date,
                                             merchant = merchant,
-                                            itemId = itemId
+                                            note = note,
+                                            itemId = itemId,
+                                            incomeStreamId = incomeStreamId
                                         )
                                         viewModel.saveTransaction(transaction)
                                         currentScreen = Screen.BUDGET
@@ -515,6 +526,24 @@ class MainActivity : ComponentActivity() {
                             onDelete = {
                                 editingStream?.let { viewModel.deleteIncomeStream(it)}
                                 showIncomeSheet = false
+                            }
+                        )
+                    }
+
+                    if (selectedStreamForDetail != null && showIncomeDetailSheet) {
+                        IncomeDetailSheet(
+                            stream = selectedStreamForDetail!!,
+                            transactions = transactions.filter { it.incomeStreamId == selectedStreamForDetail!!.id },
+                            onDismiss = { showIncomeDetailSheet = false },
+                            onEditStream = {
+                                editingStream = selectedStreamForDetail
+                                showIncomeSheet = true
+                                showIncomeDetailSheet = false
+                            },
+                            onEditTransaction = { transaction ->
+                                editingTransaction = transaction
+                                showTransactionEditSheet = true
+                                showIncomeDetailSheet = false
                             }
                         )
                     }
@@ -586,15 +615,18 @@ class MainActivity : ComponentActivity() {
                         TransactionEntrySheet(
                             targetTransaction = editingTransaction,
                             categoriesWithItems = categoriesWithItems,
+                            incomeStreams = streams,
                             onDismiss = { showTransactionEditSheet = false },
-                            onConfirm = { type, amount, date, merchant, itemId ->
+                            onConfirm = { type, amount, date, merchant, note, itemId, incomeStreamId ->
                                 val transaction = editingTransaction!!.copy(
                                     userId = user?.uid ?: "",
                                     type = type,
                                     amount = amount,
                                     date = date,
                                     merchant = merchant,
-                                    itemId = itemId
+                                    note = note,
+                                    itemId = itemId,
+                                    incomeStreamId = incomeStreamId
                                 )
                                 viewModel.saveTransaction(transaction)
                                 showTransactionEditSheet = false

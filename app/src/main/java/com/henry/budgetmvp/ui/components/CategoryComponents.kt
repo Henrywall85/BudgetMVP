@@ -20,6 +20,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Color
@@ -328,6 +329,7 @@ fun CategoryEntrySheet(
                 onValueChange = { name = it },
                 label = { Text("Category Name (e.g., Housing, Food)") },
                 modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 singleLine = true
             )
 
@@ -396,7 +398,10 @@ fun EnvelopeItemEntrySheet(
                 onValueChange = { name = it },
                 label = { Text("Item Name (e.g., Rent, Groceries)") },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Next,
+                    capitalization = KeyboardCapitalization.Words
+                ),
                 keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                 singleLine = true
             )

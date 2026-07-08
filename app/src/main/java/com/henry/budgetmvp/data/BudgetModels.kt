@@ -63,7 +63,8 @@ data class BudgetTransaction(
     val date: String,
     val merchant: String = "",
     val note: String = "",
-    val itemId: String? = null // For Expenses
+    val itemId: String? = null, // For Expenses
+    val incomeStreamId: String? = null // For Income
 )
 
 enum class TransactionType {

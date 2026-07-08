@@ -59,6 +59,7 @@ class ThousandsSeparatorTransformation : VisualTransformation {
 }
 
 fun calculateNextPayday(lastPaydayIso: String, frequency: String): String {
+    if (frequency == "Irregular") return "As Received"
     return try {
         val lastDate = LocalDate.parse(lastPaydayIso)
         val nextDate = when (frequency) {

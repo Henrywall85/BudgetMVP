@@ -65,9 +65,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val streams by viewModel.incomeStreams.collectAsState(initial = emptyList())
-            val totalPoolAmount = streams.sumOf { it.amount }
             val categoriesWithItems by viewModel.categoriesWithItems.collectAsState(initial = emptyList())
             val transactions by viewModel.transactions.collectAsState(initial = emptyList())
+
+            val totalReceivedIncome = remember(transactions) {
+                transactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+            }
 
             val user by authViewModel.userState.collectAsState()
             val authLoading by authViewModel.loading.collectAsState()
@@ -92,12 +95,12 @@ class MainActivity : ComponentActivity() {
             var showIncomeSheet by remember { mutableStateOf(false) }
             var editingStream by remember { mutableStateOf<IncomeStream?>(null) }
 
-            val unassignedFunds by remember(totalPoolAmount, categoriesWithItems) {
+            val unassignedFunds by remember(totalReceivedIncome, categoriesWithItems) {
                 derivedStateOf {
-                    val totalPlanned = categoriesWithItems.sumOf { cat ->
+                    val totalPlannedExpenses = categoriesWithItems.sumOf { cat ->
                         cat.items.sumOf { it.targetAmount }
                     }
-                    totalPoolAmount - totalPlanned
+                    totalReceivedIncome - totalPlannedExpenses
                 }
             }
 

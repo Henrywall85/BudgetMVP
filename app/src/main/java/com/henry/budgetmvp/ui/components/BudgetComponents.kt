@@ -108,29 +108,31 @@ fun IncomeDetailsCard(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    color = if (stream.frequency == "Irregular") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
                 ) {
                     Text(
-                        text = "Next: ${calculateNextPayday(stream.lastPayday, stream.frequency)}",
+                        text = if (stream.frequency == "Irregular") "Variable Income" else "Next: ${calculateNextPayday(stream.lastPayday, stream.frequency)}",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.primary
+                        color = if (stream.frequency == "Irregular") MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.primary
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
             
-            // Progress Section
-            val progress = if (stream.amount > 0) (receivedAmount / stream.amount).toFloat().coerceIn(0f, 1f) else 0f
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth().height(6.dp),
-                color = Color(0xFF059669),
-                trackColor = Color(0xFFE5E7EB),
-                strokeCap = StrokeCap.Round
-            )
+            if (stream.amount > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                // Progress Section
+                val progress = (receivedAmount / stream.amount).toFloat().coerceIn(0f, 1f)
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                    color = Color(0xFF059669),
+                    trackColor = Color(0xFFE5E7EB),
+                    strokeCap = StrokeCap.Round
+                )
+            }
 
             Spacer(modifier = Modifier.height(6.dp))
 
@@ -153,7 +155,7 @@ fun IncomeDetailsCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Goal: $${"%,.2f".format(stream.amount)}",
+                        text = if (stream.amount > 0) "Goal: $${"%,.2f".format(stream.amount)}" else "No Monthly Goal",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -219,21 +221,25 @@ fun IncomeDetailSheet(
                     modifier = Modifier.padding(16.dp).fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
-                        Text("Planned", style = MaterialTheme.typography.labelSmall)
-                        Text("$${"%,.2f".format(stream.amount)}", fontWeight = FontWeight.Bold)
+                    if (stream.amount > 0) {
+                        Column {
+                            Text("Planned", style = MaterialTheme.typography.labelSmall)
+                            Text("$${"%,.2f".format(stream.amount)}", fontWeight = FontWeight.Bold)
+                        }
                     }
                     Column {
-                        Text("Received", style = MaterialTheme.typography.labelSmall)
+                        Text(if (stream.amount > 0) "Received" else "Total Received", style = MaterialTheme.typography.labelSmall)
                         Text("$${"%,.2f".format(receivedAmount)}", fontWeight = FontWeight.Bold, color = Color(0xFF059669))
                     }
-                    Column {
-                        Text("Pending", style = MaterialTheme.typography.labelSmall)
-                        Text(
-                            "$${"%,.2f".format(if (remaining > 0) remaining else 0.0)}", 
-                            fontWeight = FontWeight.Bold,
-                            color = if (remaining > 0) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF059669)
-                        )
+                    if (stream.amount > 0) {
+                        Column {
+                            Text("Pending", style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                "$${"%,.2f".format(if (remaining > 0) remaining else 0.0)}", 
+                                fontWeight = FontWeight.Bold,
+                                color = if (remaining > 0) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF059669)
+                            )
+                        }
                     }
                 }
             }
@@ -307,12 +313,12 @@ fun IncomeEntrySheet(
     onDelete: () -> Unit
 ) {
     var source by remember { mutableStateOf(targetStream?.sourceName ?: "") }
-    var amount by remember { mutableStateOf(targetStream?.amount?.let { if (it == 0.0) "" else it.toString() } ?: "") }
+    var amount by remember { mutableStateOf(targetStream?.amount?.let { if (it == 0.0) "0" else it.toString() } ?: "") }
     var frequency by remember { mutableStateOf(targetStream?.frequency ?: "Please Enter Frequency") }
     var selectedDateIso by remember { mutableStateOf(targetStream?.lastPayday ?: LocalDate.now().toString()) }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    val frequencies = listOf("Weekly", "Bi-Weekly", "Monthly")
+    val frequencies = listOf("Weekly", "Bi-Weekly", "Monthly", "Irregular")
     var expanded by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -320,7 +326,7 @@ fun IncomeEntrySheet(
 
     val isFormValid by remember {
         derivedStateOf {
-            source.isNotBlank() && (amount.toDoubleOrNull() ?: 0.0) > 0 && frequency != "Please Enter Frequency" && selectedDateIso.isNotBlank()
+            source.isNotBlank() && (amount.toDoubleOrNull() ?: -1.0) >= 0 && frequency != "Please Enter Frequency" && selectedDateIso.isNotBlank()
         }
     }
 
@@ -365,7 +371,7 @@ fun IncomeEntrySheet(
                 onValueChange = { input ->
                     if (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' }) { amount = input }
                 },
-                label = { Text("Paycheck Amount") },
+                label = { Text("Planned Amount (Set to 0 if irregular)") },
                 placeholder = { Text("$0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),

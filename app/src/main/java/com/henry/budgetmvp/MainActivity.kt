@@ -76,6 +76,15 @@ class MainActivity : ComponentActivity() {
             val authLoading by authViewModel.loading.collectAsState()
             val authError by authViewModel.error.collectAsState()
 
+            val packageInfo = remember {
+                try {
+                    packageManager.getPackageInfo(packageName, 0)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            val versionName = packageInfo?.versionName ?: "1.0"
+
             // Pass the userId to the ViewModel
             LaunchedEffect(user) {
                 viewModel.setUserId(user?.uid)
@@ -240,6 +249,7 @@ class MainActivity : ComponentActivity() {
                         when (currentScreen) {
                             Screen.LOGIN -> {
                                 LoginPage(
+                                    versionName = versionName,
                                     loading = authLoading,
                                     errorMessage = authError,
                                     onLoginClick = { email, password ->
@@ -252,6 +262,7 @@ class MainActivity : ComponentActivity() {
                             }
                             Screen.SIGNUP -> {
                                 SignupPage(
+                                    versionName = versionName,
                                     loading = authLoading,
                                     errorMessage = authError,
                                     onSignupClick = { name, email, password ->
@@ -484,6 +495,17 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
+                                    }
+                                    
+                                    item {
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Text(
+                                            text = "Version $versionName",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
                                     }
                                 }
                             }

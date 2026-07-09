@@ -10,18 +10,20 @@ import java.util.UUID
 @Entity(tableName = "multi_income_table")
 data class IncomeStream(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
-    val userId: String,
-    val sourceName: String,
-    val amount: Double,
-    val frequency: String,
-    val lastPayday: String
+    val userId: String = "",
+    val householdId: String = "",
+    val sourceName: String = "",
+    val amount: Double = 0.0,
+    val frequency: String = "",
+    val lastPayday: String = ""
 )
 
 @Entity(tableName = "budget_category_table")
 data class BudgetCategory(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
-    val userId: String,
-    val name: String
+    val userId: String = "",
+    val householdId: String = "",
+    val name: String = ""
 )
 
 @Entity(
@@ -37,10 +39,11 @@ data class BudgetCategory(
 )
 data class EnvelopeItem(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
-    val userId: String,
-    val categoryId: String,
-    val name: String,
-    val targetAmount: Double,
+    val userId: String = "",
+    val householdId: String = "",
+    val categoryId: String = "",
+    val name: String = "",
+    val targetAmount: Double = 0.0,
     val allocatedAmount: Double = 0.0
 )
 
@@ -57,14 +60,23 @@ data class EnvelopeItem(
 )
 data class BudgetTransaction(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
-    val userId: String,
-    val type: TransactionType,
-    val amount: Double,
-    val date: String,
+    val userId: String = "",
+    val householdId: String = "",
+    val type: TransactionType = TransactionType.EXPENSE,
+    val amount: Double = 0.0,
+    val date: String = "",
     val merchant: String = "",
     val note: String = "",
     val itemId: String? = null, // For Expenses
     val incomeStreamId: String? = null // For Income
+)
+
+@Entity(tableName = "user_profile_table")
+data class UserProfile(
+    @PrimaryKey val userId: String = "",
+    val email: String = "",
+    val householdId: String = "",
+    val userName: String = ""
 )
 
 enum class TransactionType {
@@ -72,10 +84,10 @@ enum class TransactionType {
 }
 
 data class CategoryWithItems(
-    @Embedded val category: BudgetCategory,
+    @Embedded val category: BudgetCategory = BudgetCategory(),
     @Relation(
         parentColumn = "id",
         entityColumn = "categoryId"
     )
-    val items: List<EnvelopeItem>
+    val items: List<EnvelopeItem> = emptyList()
 )

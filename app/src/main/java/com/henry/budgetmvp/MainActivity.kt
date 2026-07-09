@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -41,7 +42,7 @@ import com.henry.budgetmvp.viewmodel.AuthViewModel
 import com.henry.budgetmvp.viewmodel.BudgetViewModel
 
 enum class Screen {
-    LOGIN, SIGNUP, BUDGET, TRANSACTIONS
+    LOGIN, SIGNUP, BUDGET, TRANSACTIONS, HOUSEHOLD
 }
 
 class MainActivity : ComponentActivity() {
@@ -75,6 +76,8 @@ class MainActivity : ComponentActivity() {
             val user by authViewModel.userState.collectAsState()
             val authLoading by authViewModel.loading.collectAsState()
             val authError by authViewModel.error.collectAsState()
+
+            val isSyncing by viewModel.isSyncing.collectAsState()
 
             val packageInfo = remember {
                 try {
@@ -167,6 +170,13 @@ class MainActivity : ComponentActivity() {
                                     )
                                 },
                                 actions = {
+                                    IconButton(onClick = { currentScreen = Screen.HOUSEHOLD }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Groups,
+                                            contentDescription = "Household",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
                                     IconButton(onClick = { showLogoutDialog = true }) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.Logout,
@@ -273,19 +283,29 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToLogin = { currentScreen = Screen.LOGIN }
                                 )
                             }
+                            Screen.HOUSEHOLD -> {
+                                val hid by viewModel.householdId.collectAsState()
+                                HouseholdPage(
+                                    currentHouseholdId = hid ?: "Loading...",
+                                    onJoinHousehold = { viewModel.joinHousehold(it) },
+                                    onLeaveHousehold = { viewModel.leaveHousehold() },
+                                    onBack = { currentScreen = Screen.BUDGET }
+                                )
+                            }
                             Screen.BUDGET -> {
-                                LazyColumn(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                                    contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)
-                                ) {
-                                    // (1) THE TOTAL POOL CARD
-                                    item {
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        TotalPoolCard(unassignedFunds)
-                                    }
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    LazyColumn(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(20.dp),
+                                        contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)
+                                    ) {
+                                        // (1) THE TOTAL POOL CARD
+                                        item {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            TotalPoolCard(unassignedFunds)
+                                        }
 
                                     // (2) MULTIPLE INCOME DETAILS CARDS
                                     item {
@@ -508,14 +528,23 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 }
+                                
+                                if (isSyncing) {
+                                    LinearProgressIndicator(
+                                        modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
                             }
-                            Screen.TRANSACTIONS -> {
+                        }
+                        Screen.TRANSACTIONS -> {
                                 TransactionPage(
                                     categoriesWithItems = categoriesWithItems,
                                     incomeStreams = streams,
                                     onConfirm = { type, amount, date, merchant, note, itemId, incomeStreamId ->
                                         val transaction = BudgetTransaction(
                                             userId = user?.uid ?: "",
+                                            householdId = "", // ViewModel will fill this
                                             type = type,
                                             amount = amount,
                                             date = date,
@@ -540,6 +569,7 @@ class MainActivity : ComponentActivity() {
                                 val streamToSave = IncomeStream(
                                     id = editingStream?.id ?: java.util.UUID.randomUUID().toString(),
                                     userId = user?.uid ?: "",
+                                    householdId = "", // ViewModel will fill this
                                     sourceName = sourceName,
                                     amount = amount,
                                     frequency = frequency,
@@ -581,6 +611,7 @@ class MainActivity : ComponentActivity() {
                                 val categoryToSave = BudgetCategory(
                                     id = editingCategory?.id ?: java.util.UUID.randomUUID().toString(),
                                     userId = user?.uid ?: "",
+                                    householdId = "", // ViewModel will fill this
                                     name = name
                                 )
                                 viewModel.saveCategory(categoryToSave)
@@ -602,6 +633,7 @@ class MainActivity : ComponentActivity() {
                                 val itemToSave = EnvelopeItem(
                                     id = editingItem?.id ?: java.util.UUID.randomUUID().toString(),
                                     userId = user?.uid ?: "",
+                                    householdId = "", // ViewModel will fill this
                                     categoryId = activeCategoryId ?: "",
                                     name = name,
                                     targetAmount = target,

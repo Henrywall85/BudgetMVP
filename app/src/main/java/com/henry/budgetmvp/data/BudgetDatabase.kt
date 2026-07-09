@@ -5,8 +5,14 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BudgetDao {
-    @Query("SELECT * FROM multi_income_table WHERE userId = :userId ORDER BY id ASC")
-    fun getAllIncomeStreams(userId: String): Flow<List<IncomeStream>>
+    @Query("SELECT * FROM user_profile_table WHERE userId = :userId")
+    suspend fun getUserProfile(userId: String): UserProfile?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertUserProfile(profile: UserProfile)
+
+    @Query("SELECT * FROM multi_income_table WHERE householdId = :householdId ORDER BY id ASC")
+    fun getAllIncomeStreams(householdId: String): Flow<List<IncomeStream>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertIncomeStream(stream: IncomeStream)
@@ -15,8 +21,8 @@ interface BudgetDao {
     suspend fun deleteIncomeStream(stream: IncomeStream)
 
     @Transaction
-    @Query("SELECT * FROM budget_category_table WHERE userId = :userId ORDER BY name ASC")
-    fun getAllCategoriesWithItems(userId: String): Flow<List<CategoryWithItems>>
+    @Query("SELECT * FROM budget_category_table WHERE householdId = :householdId ORDER BY name ASC")
+    fun getAllCategoriesWithItems(householdId: String): Flow<List<CategoryWithItems>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertCategory(category: BudgetCategory)
@@ -30,8 +36,8 @@ interface BudgetDao {
     @Delete
     suspend fun deleteEnvelopeItem(item: EnvelopeItem)
 
-    @Query("SELECT * FROM transaction_table WHERE userId = :userId ORDER BY date DESC")
-    fun getAllTransactions(userId: String): Flow<List<BudgetTransaction>>
+    @Query("SELECT * FROM transaction_table WHERE householdId = :householdId ORDER BY date DESC")
+    fun getAllTransactions(householdId: String): Flow<List<BudgetTransaction>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertTransaction(transaction: BudgetTransaction)
@@ -41,8 +47,8 @@ interface BudgetDao {
 }
 
 @Database(
-    entities = [IncomeStream::class, BudgetCategory::class, EnvelopeItem::class, BudgetTransaction::class],
-    version = 13,
+    entities = [IncomeStream::class, BudgetCategory::class, EnvelopeItem::class, BudgetTransaction::class, UserProfile::class],
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

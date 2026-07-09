@@ -29,6 +29,14 @@ class FirestoreSyncManager {
         )
     }
 
+    suspend fun getLatestVersionInfo(): AppVersionInfo? {
+        return try {
+            db.collection("app_metadata").document("version").get().await().toObject(AppVersionInfo::class.java)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     // --- User Profile ---
     suspend fun saveUserProfile(profile: UserProfile) {
         db.collection("users").document(profile.userId).set(profile).await()
@@ -38,9 +46,28 @@ class FirestoreSyncManager {
         return db.collection("users").document(userId).get().await().toObject(UserProfile::class.java)
     }
 
-    // --- Household Access ---
+    // --- Household Access & Invites ---
     suspend fun getHouseholdMembers(householdId: String): List<UserProfile> {
         return db.collection("users").whereEqualTo("householdId", householdId).get().await().toObjects<UserProfile>()
+    }
+
+    suspend fun sendInvite(invite: HouseholdInvite) {
+        db.collection("invites").document(invite.id).set(invite).await()
+    }
+
+    suspend fun getPendingInvitesForEmail(email: String): List<HouseholdInvite> {
+        return db.collection("invites")
+            .whereEqualTo("toEmail", email)
+            .whereEqualTo("status", "PENDING")
+            .get().await().toObjects<HouseholdInvite>()
+    }
+
+    suspend fun updateInviteStatus(inviteId: String, status: String) {
+        db.collection("invites").document(inviteId).update("status", status).await()
+    }
+
+    suspend fun deleteInvite(inviteId: String) {
+        db.collection("invites").document(inviteId).delete().await()
     }
 
     // --- Income Streams ---

@@ -14,20 +14,44 @@ class BudgetViewModel(
     private val _userId = MutableStateFlow<String?>(null)
     private val _householdId = MutableStateFlow<String?>(null)
     private val _isSyncing = MutableStateFlow(false)
+    private val _userProfile = MutableStateFlow<UserProfile?>(null)
+    private val _householdMembers = MutableStateFlow<List<UserProfile>>(emptyList())
+    private val _pendingInvites = MutableStateFlow<List<HouseholdInvite>>(emptyList())
+    private val _updateInfo = MutableStateFlow<AppVersionInfo?>(null)
     
     val householdId: StateFlow<String?> = _householdId
     val isSyncing: StateFlow<Boolean> = _isSyncing
+    val userProfile: StateFlow<UserProfile?> = _userProfile
+    val householdMembers: StateFlow<List<UserProfile>> = _householdMembers
+    val pendingInvites: StateFlow<List<HouseholdInvite>> = _pendingInvites
+    val updateInfo: StateFlow<AppVersionInfo?> = _updateInfo
 
-    fun setUserId(id: String?) {
+    fun setUserId(id: String?, email: String? = null) {
         _userId.value = id
         if (id != null) {
-            loadUserProfile(id)
+            loadUserProfile(id, email)
         } else {
             _householdId.value = null
+            _userProfile.value = null
+            _householdMembers.value = emptyList()
+            _pendingInvites.value = emptyList()
         }
     }
 
-    private fun loadUserProfile(userId: String) {
+    fun checkForUpdates(currentVersion: String) {
+        viewModelScope.launch {
+            val latestInfo = firestore.getLatestVersionInfo()
+            if (latestInfo != null && latestInfo.latestVersion != currentVersion) {
+                _updateInfo.value = latestInfo
+            }
+        }
+    }
+
+    fun dismissUpdatePopup() {
+        _updateInfo.value = null
+    }
+
+    private fun loadUserProfile(userId: String, email: String?) {
         viewModelScope.launch {
             try {
                 // 1. Try Local Room
@@ -40,24 +64,115 @@ class BudgetViewModel(
 
                 // 3. Create new if still null (New User)
                 if (profile == null) {
-                    profile = UserProfile(userId = userId, email = "", householdId = userId)
+                    profile = UserProfile(userId = userId, email = email ?: "", householdId = userId)
+                    firestore.saveUserProfile(profile)
+                } else if (email != null && profile.email != email) {
+                    // Update email if it changed or was missing
+                    profile = profile.copy(email = email)
                     firestore.saveUserProfile(profile)
                 }
 
                 // 4. Save to Local & Set State
                 dao.upsertUserProfile(profile)
+                _userProfile.value = profile
                 _householdId.value = profile.householdId
                 
-                // 5. Trigger Sync
+                // 5. Load Members & Invites
+                refreshHouseholdData(profile.householdId)
+                refreshPendingInvites(profile.email)
+                
+                // 6. Trigger Sync
                 syncFromCloud(profile.householdId)
             } catch (e: Exception) {
                 e.printStackTrace()
-                // Fallback to own ID if error
                 _householdId.value = userId
                 syncFromCloud(userId)
             }
         }
     }
+
+    private fun refreshHouseholdData(householdId: String) {
+        viewModelScope.launch {
+            try {
+                val members = firestore.getHouseholdMembers(householdId)
+                _householdMembers.value = members
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun refreshPendingInvites(email: String) {
+        if (email.isBlank()) return
+        viewModelScope.launch {
+            try {
+                val invites = firestore.getPendingInvitesForEmail(email)
+                _pendingInvites.value = invites
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun inviteMember(toEmail: String) {
+        val fromProfile = _userProfile.value ?: return
+        val hid = _householdId.value ?: return
+        
+        viewModelScope.launch {
+            try {
+                val invite = HouseholdInvite(
+                    fromEmail = fromProfile.email,
+                    fromUserId = fromProfile.userId,
+                    toEmail = toEmail,
+                    householdId = hid
+                )
+                firestore.sendInvite(invite)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun acceptInvite(invite: HouseholdInvite) {
+        val uid = _userId.value ?: return
+        viewModelScope.launch {
+            try {
+                // Update profile with new householdId
+                val currentProfile = _userProfile.value ?: return@launch
+                val updatedProfile = currentProfile.copy(householdId = invite.householdId)
+                
+                firestore.saveUserProfile(updatedProfile)
+                dao.upsertUserProfile(updatedProfile)
+                
+                // Update invite status
+                firestore.updateInviteStatus(invite.id, "ACCEPTED")
+                
+                // Update local state
+                _householdId.value = invite.householdId
+                _userProfile.value = updatedProfile
+                
+                // Cleanup: Refresh data
+                refreshHouseholdData(invite.householdId)
+                refreshPendingInvites(updatedProfile.email)
+                syncFromCloud(invite.householdId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun declineInvite(invite: HouseholdInvite) {
+        viewModelScope.launch {
+            try {
+                firestore.updateInviteStatus(invite.id, "DECLINED")
+                val email = _userProfile.value?.email ?: ""
+                refreshPendingInvites(email)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
 
     private fun syncFromCloud(householdId: String) {
         val uid = _userId.value ?: return

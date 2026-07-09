@@ -1,6 +1,8 @@
 package com.henry.budgetmvp
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -78,6 +81,7 @@ class MainActivity : ComponentActivity() {
             val authError by authViewModel.error.collectAsState()
 
             val isSyncing by viewModel.isSyncing.collectAsState()
+            val updateInfo by viewModel.updateInfo.collectAsState()
 
             val packageInfo = remember {
                 try {
@@ -90,7 +94,11 @@ class MainActivity : ComponentActivity() {
 
             // Pass the userId to the ViewModel
             LaunchedEffect(user) {
-                viewModel.setUserId(user?.uid)
+                viewModel.setUserId(user?.uid, user?.email)
+            }
+
+            LaunchedEffect(versionName) {
+                viewModel.checkForUpdates(versionName)
             }
 
             var currentScreen by remember { mutableStateOf(if (user != null) Screen.BUDGET else Screen.LOGIN) }
@@ -164,18 +172,35 @@ class MainActivity : ComponentActivity() {
                             CenterAlignedTopAppBar(
                                 title = {
                                     Text(
-                                        text = if (currentScreen == Screen.BUDGET) "PAYCHECK BUDGET" else "TRANSACTIONS",
+                                        text = when (currentScreen) {
+                                            Screen.BUDGET -> "PAYCHECK BUDGET"
+                                            Screen.HOUSEHOLD -> "HOUSEHOLD MEMBERS"
+                                            else -> "TRANSACTIONS"
+                                        },
                                         fontWeight = FontWeight.Black,
                                         style = MaterialTheme.typography.titleMedium
                                     )
                                 },
+                                navigationIcon = {
+                                    if (currentScreen == Screen.HOUSEHOLD) {
+                                        IconButton(onClick = { currentScreen = Screen.BUDGET }) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                                contentDescription = "Back",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                },
                                 actions = {
-                                    IconButton(onClick = { currentScreen = Screen.HOUSEHOLD }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Groups,
-                                            contentDescription = "Household",
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
+                                    if (currentScreen != Screen.HOUSEHOLD) {
+                                        IconButton(onClick = { currentScreen = Screen.HOUSEHOLD }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Groups,
+                                                contentDescription = "Household",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
                                     IconButton(onClick = { showLogoutDialog = true }) {
                                         Icon(
@@ -284,12 +309,17 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                             Screen.HOUSEHOLD -> {
-                                val hid by viewModel.householdId.collectAsState()
+                                val members by viewModel.householdMembers.collectAsState()
+                                val pendingInvites by viewModel.pendingInvites.collectAsState()
+                                
                                 HouseholdPage(
-                                    currentHouseholdId = hid ?: "Loading...",
-                                    onJoinHousehold = { viewModel.joinHousehold(it) },
-                                    onLeaveHousehold = { viewModel.leaveHousehold() },
-                                    onBack = { currentScreen = Screen.BUDGET }
+                                    currentUserId = user?.uid ?: "",
+                                    members = members,
+                                    pendingInvites = pendingInvites,
+                                    onInviteMember = { viewModel.inviteMember(it) },
+                                    onAcceptInvite = { viewModel.acceptInvite(it) },
+                                    onDeclineInvite = { viewModel.declineInvite(it) },
+                                    onLeaveHousehold = { viewModel.leaveHousehold() }
                                 )
                             }
                             Screen.BUDGET -> {
@@ -713,6 +743,40 @@ class MainActivity : ComponentActivity() {
                             dismissButton = {
                                 TextButton(onClick = { showLogoutDialog = false }) {
                                     Text("CANCEL")
+                                }
+                            }
+                        )
+                    }
+
+                    if (updateInfo != null) {
+                        AlertDialog(
+                            onDismissRequest = { 
+                                if (!updateInfo!!.isMandatory) viewModel.dismissUpdatePopup()
+                            },
+                            title = { Text("New Version Available") },
+                            text = { Text("A new version of BudgetMVP (${updateInfo!!.latestVersion}) is available. Please update to get the latest features and fixes.") },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        if (updateInfo!!.updateUrl.isNotBlank()) {
+                                            try {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo!!.updateUrl))
+                                                startActivity(intent)
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
+                                        if (!updateInfo!!.isMandatory) viewModel.dismissUpdatePopup()
+                                    }
+                                ) {
+                                    Text("UPDATE NOW")
+                                }
+                            },
+                            dismissButton = {
+                                if (!updateInfo!!.isMandatory) {
+                                    TextButton(onClick = { viewModel.dismissUpdatePopup() }) {
+                                        Text("LATER")
+                                    }
                                 }
                             }
                         )

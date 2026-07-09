@@ -79,6 +79,15 @@ data class UserProfile(
     val userName: String = ""
 )
 
+data class HouseholdInvite(
+    val id: String = UUID.randomUUID().toString(),
+    val fromEmail: String,
+    val fromUserId: String,
+    val toEmail: String,
+    val householdId: String,
+    val status: String = "PENDING" // PENDING, ACCEPTED, DECLINED
+)
+
 enum class TransactionType {
     INCOME, EXPENSE
 }
@@ -90,4 +99,10 @@ data class CategoryWithItems(
         entityColumn = "categoryId"
     )
     val items: List<EnvelopeItem> = emptyList()
+)
+
+data class AppVersionInfo(
+    val latestVersion: String = "1.0",
+    val updateUrl: String = "",
+    val isMandatory: Boolean = false
 )

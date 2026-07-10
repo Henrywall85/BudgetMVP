@@ -44,6 +44,19 @@ interface BudgetDao {
 
     @Delete
     suspend fun deleteTransaction(transaction: BudgetTransaction)
+
+    @Transaction
+    suspend fun syncAllData(
+        income: List<IncomeStream>,
+        categories: List<BudgetCategory>,
+        items: List<EnvelopeItem>,
+        transactions: List<BudgetTransaction>
+    ) {
+        income.forEach { upsertIncomeStream(it) }
+        categories.forEach { upsertCategory(it) }
+        items.forEach { upsertEnvelopeItem(it) }
+        transactions.forEach { upsertTransaction(it) }
+    }
 }
 
 @Database(

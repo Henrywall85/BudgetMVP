@@ -73,3 +73,12 @@ fun calculateNextPayday(lastPaydayIso: String, frequency: String): String {
         "TBD"
     }
 }
+
+fun formatIsoDate(isoDate: String): String {
+    if (isoDate.isBlank()) return ""
+    return try {
+        LocalDate.parse(isoDate).format(DateTimeFormatter.ofPattern("MMM dd"))
+    } catch (e: Exception) {
+        isoDate
+    }
+}

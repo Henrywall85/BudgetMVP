@@ -17,14 +17,14 @@ class BudgetViewModel(
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     private val _householdMembers = MutableStateFlow<List<UserProfile>>(emptyList())
     private val _pendingInvites = MutableStateFlow<List<HouseholdInvite>>(emptyList())
-    private val _updateInfo = MutableStateFlow<AppVersionInfo?>(null)
+    private val _statusMessage = MutableSharedFlow<String>()
     
     val householdId: StateFlow<String?> = _householdId
     val isSyncing: StateFlow<Boolean> = _isSyncing
     val userProfile: StateFlow<UserProfile?> = _userProfile
     val householdMembers: StateFlow<List<UserProfile>> = _householdMembers
     val pendingInvites: StateFlow<List<HouseholdInvite>> = _pendingInvites
-    val updateInfo: StateFlow<AppVersionInfo?> = _updateInfo
+    val statusMessage: SharedFlow<String> = _statusMessage
 
     fun setUserId(id: String?, email: String? = null) {
         _userId.value = id
@@ -36,19 +36,6 @@ class BudgetViewModel(
             _householdMembers.value = emptyList()
             _pendingInvites.value = emptyList()
         }
-    }
-
-    fun checkForUpdates(currentVersion: String) {
-        viewModelScope.launch {
-            val latestInfo = firestore.getLatestVersionInfo()
-            if (latestInfo != null && latestInfo.latestVersion != currentVersion) {
-                _updateInfo.value = latestInfo
-            }
-        }
-    }
-
-    fun dismissUpdatePopup() {
-        _updateInfo.value = null
     }
 
     private fun loadUserProfile(userId: String, email: String?) {
@@ -102,15 +89,25 @@ class BudgetViewModel(
         }
     }
 
-    private fun refreshPendingInvites(email: String) {
+    private fun refreshPendingInvites(email: String, showStatus: Boolean = false) {
         if (email.isBlank()) return
         val cleanEmail = email.lowercase().trim()
         viewModelScope.launch {
             try {
                 val invites = firestore.getPendingInvitesForEmail(cleanEmail)
                 _pendingInvites.value = invites
+                if (showStatus) {
+                    if (invites.isEmpty()) {
+                        _statusMessage.emit("No new invites for $cleanEmail")
+                    } else {
+                        _statusMessage.emit("Found ${invites.size} invite(s)")
+                    }
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
+                if (showStatus) {
+                    _statusMessage.emit("Error checking invites: ${e.localizedMessage}")
+                }
             }
         }
     }
@@ -136,7 +133,7 @@ class BudgetViewModel(
 
     fun refreshInvites() {
         val email = _userProfile.value?.email ?: return
-        refreshPendingInvites(email)
+        refreshPendingInvites(email, showStatus = true)
     }
 
     fun acceptInvite(invite: HouseholdInvite) {
@@ -187,38 +184,41 @@ class BudgetViewModel(
             try {
                 val data = firestore.fetchAllData(householdId, uid)
                 
-                (data["income"] as? List<IncomeStream>)?.forEach { stream ->
+                val incomeList = (data["income"] as? List<IncomeStream>)?.map { stream ->
                     val updated = if (stream.householdId.isEmpty()) stream.copy(householdId = householdId) else stream
-                    dao.upsertIncomeStream(updated)
-                    // If it was legacy, push the fix back to cloud
                     if (stream.householdId.isEmpty()) {
                         try { firestore.saveIncomeStream(updated) } catch (e: Exception) {}
                     }
-                }
+                    updated
+                } ?: emptyList()
                 
-                (data["categories"] as? List<BudgetCategory>)?.forEach { cat ->
+                val categoriesList = (data["categories"] as? List<BudgetCategory>)?.map { cat ->
                     val updated = if (cat.householdId.isEmpty()) cat.copy(householdId = householdId) else cat
-                    dao.upsertCategory(updated)
                     if (cat.householdId.isEmpty()) {
                         try { firestore.saveCategory(updated) } catch (e: Exception) {}
                     }
-                }
+                    updated
+                } ?: emptyList()
                 
-                (data["items"] as? List<EnvelopeItem>)?.forEach { item ->
+                val itemsList = (data["items"] as? List<EnvelopeItem>)?.map { item ->
                     val updated = if (item.householdId.isEmpty()) item.copy(householdId = householdId) else item
-                    dao.upsertEnvelopeItem(updated)
                     if (item.householdId.isEmpty()) {
                         try { firestore.saveEnvelopeItem(updated) } catch (e: Exception) {}
                     }
-                }
+                    updated
+                } ?: emptyList()
                 
-                (data["transactions"] as? List<BudgetTransaction>)?.forEach { tx ->
+                val transactionsList = (data["transactions"] as? List<BudgetTransaction>)?.map { tx ->
                     val updated = if (tx.householdId.isEmpty()) tx.copy(householdId = householdId) else tx
-                    dao.upsertTransaction(updated)
                     if (tx.householdId.isEmpty()) {
                         try { firestore.saveTransaction(updated) } catch (e: Exception) {}
                     }
-                }
+                    updated
+                } ?: emptyList()
+
+                // Perform all database updates in a single transaction
+                dao.syncAllData(incomeList, categoriesList, itemsList, transactionsList)
+
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {

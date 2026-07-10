@@ -29,14 +29,6 @@ class FirestoreSyncManager {
         )
     }
 
-    suspend fun getLatestVersionInfo(): AppVersionInfo? {
-        return try {
-            db.collection("app_metadata").document("version").get().await().toObject(AppVersionInfo::class.java)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
     // --- User Profile ---
     suspend fun saveUserProfile(profile: UserProfile) {
         db.collection("users").document(profile.userId).set(profile).await()

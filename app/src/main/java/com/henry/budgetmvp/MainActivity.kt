@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -20,6 +21,8 @@ import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -71,6 +74,7 @@ class MainActivity : ComponentActivity() {
             val streams by viewModel.incomeStreams.collectAsState(initial = emptyList())
             val categoriesWithItems by viewModel.categoriesWithItems.collectAsState(initial = emptyList())
             val transactions by viewModel.transactions.collectAsState(initial = emptyList())
+            val pendingInvites by viewModel.pendingInvites.collectAsState()
 
             val totalReceivedIncome = remember(transactions) {
                 transactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
@@ -81,7 +85,6 @@ class MainActivity : ComponentActivity() {
             val authError by authViewModel.error.collectAsState()
 
             val isSyncing by viewModel.isSyncing.collectAsState()
-            val updateInfo by viewModel.updateInfo.collectAsState()
             val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
             val packageInfo = remember {
@@ -98,8 +101,11 @@ class MainActivity : ComponentActivity() {
                 viewModel.setUserId(user?.uid, user?.email)
             }
 
-            LaunchedEffect(versionName) {
-                viewModel.checkForUpdates(versionName)
+            val context = androidx.compose.ui.platform.LocalContext.current
+            LaunchedEffect(Unit) {
+                viewModel.statusMessage.collect { message ->
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                }
             }
 
             var currentScreen by remember { mutableStateOf(if (user != null) Screen.BUDGET else Screen.LOGIN) }
@@ -190,6 +196,25 @@ class MainActivity : ComponentActivity() {
                                                 contentDescription = "Back",
                                                 tint = MaterialTheme.colorScheme.primary
                                             )
+                                        }
+                                    } else {
+                                        IconButton(onClick = { currentScreen = Screen.HOUSEHOLD }) {
+                                            BadgedBox(
+                                                badge = {
+                                                    if (pendingInvites.isNotEmpty()) {
+                                                        Badge(
+                                                            containerColor = MaterialTheme.colorScheme.error,
+                                                            modifier = Modifier.offset(x = (-4).dp, y = 4.dp)
+                                                        )
+                                                    }
+                                                }
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (pendingInvites.isNotEmpty()) Icons.Default.Notifications else Icons.Outlined.Notifications,
+                                                    contentDescription = "Notifications",
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
                                         }
                                     }
                                 },
@@ -311,7 +336,6 @@ class MainActivity : ComponentActivity() {
                             }
                             Screen.HOUSEHOLD -> {
                                 val members by viewModel.householdMembers.collectAsState()
-                                val pendingInvites by viewModel.pendingInvites.collectAsState()
                                 
                                 HouseholdPage(
                                     currentUserId = user?.uid ?: "",
@@ -388,13 +412,16 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 } else {
                                                     streams.forEachIndexed { index, stream ->
-                                                        val receivedAmount = transactions
+                                                        val streamTransactions = transactions
                                                             .filter { it.type == TransactionType.INCOME && it.incomeStreamId == stream.id }
-                                                            .sumOf { it.amount }
+                                                        
+                                                        val receivedAmount = streamTransactions.sumOf { it.amount }
+                                                        val lastDate = streamTransactions.maxByOrNull { it.date }?.date
 
                                                         IncomeDetailsCard(
                                                             stream = stream,
                                                             receivedAmount = receivedAmount,
+                                                            lastPaymentDate = lastDate,
                                                             onClick = {
                                                                 selectedStreamForDetail = stream
                                                                 showIncomeDetailSheet = true
@@ -745,39 +772,6 @@ class MainActivity : ComponentActivity() {
                             dismissButton = {
                                 TextButton(onClick = { showLogoutDialog = false }) {
                                     Text("CANCEL")
-                                }
-                            }
-                        )
-                    }
-
-                    if (updateInfo != null) {
-                        AlertDialog(
-                            onDismissRequest = { 
-                                if (!updateInfo!!.isMandatory) viewModel.dismissUpdatePopup()
-                            },
-                            title = { Text("New Version Available") },
-                            text = { Text("A new version of BudgetMVP (${updateInfo!!.latestVersion}) is available. Please update to get the latest features and fixes.") },
-                            confirmButton = {
-                                Button(
-                                    onClick = {
-                                        if (updateInfo!!.updateUrl.isNotBlank()) {
-                                            try {
-                                                uriHandler.openUri(updateInfo!!.updateUrl)
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                            }
-                                        }
-                                        if (!updateInfo!!.isMandatory) viewModel.dismissUpdatePopup()
-                                    }
-                                ) {
-                                    Text("UPDATE NOW")
-                                }
-                            },
-                            dismissButton = {
-                                if (!updateInfo!!.isMandatory) {
-                                    TextButton(onClick = { viewModel.dismissUpdatePopup() }) {
-                                        Text("LATER")
-                                    }
                                 }
                             }
                         )

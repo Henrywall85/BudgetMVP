@@ -30,6 +30,7 @@ import com.henry.budgetmvp.data.IncomeStream
 import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
 import com.henry.budgetmvp.util.calculateNextPayday
+import com.henry.budgetmvp.util.formatIsoDate
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -86,6 +87,7 @@ fun TotalPoolCard(total: Double) {
 fun IncomeDetailsCard(
     stream: IncomeStream,
     receivedAmount: Double,
+    lastPaymentDate: String?,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -111,8 +113,13 @@ fun IncomeDetailsCard(
                     color = if (stream.frequency == "Irregular") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
                 ) {
+                    val label = if (stream.frequency == "Irregular") {
+                        if (lastPaymentDate != null) "Last: ${formatIsoDate(lastPaymentDate)}" else "Variable Income"
+                    } else {
+                        "Next: ${calculateNextPayday(stream.lastPayday, stream.frequency)}"
+                    }
                     Text(
-                        text = if (stream.frequency == "Irregular") "Variable Income" else "Next: ${calculateNextPayday(stream.lastPayday, stream.frequency)}",
+                        text = label,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -278,7 +285,7 @@ fun IncomeDetailSheet(
                     ) {
                         Column {
                             Text(
-                                text = transaction.date,
+                                text = formatIsoDate(transaction.date),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

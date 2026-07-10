@@ -24,6 +24,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.MoreVert
 import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.IncomeStream
@@ -38,9 +40,14 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun TotalPoolCard(total: Double) {
-    val dateText = remember { 
-        LocalDate.now().format(DateTimeFormatter.ofPattern("MMMM yyyy"))
+fun TotalPoolCard(
+    total: Double,
+    currentDate: LocalDate,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit
+) {
+    val dateText = remember(currentDate) { 
+        currentDate.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
     }
     
     Card(
@@ -53,16 +60,39 @@ fun TotalPoolCard(total: Double) {
         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = dateText.uppercase(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-                letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onPreviousMonth) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Previous Month",
+                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                    )
+                }
+                
+                Text(
+                    text = dateText.uppercase(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                    letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
+                )
+
+                IconButton(onClick = onNextMonth) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Next Month",
+                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "$${"%,.2f".format(total)}",

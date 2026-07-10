@@ -43,6 +43,7 @@ import com.henry.budgetmvp.data.EnvelopeItem
 import com.henry.budgetmvp.data.IncomeStream
 import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.TransactionType
+import java.time.LocalDate
 import com.henry.budgetmvp.ui.components.*
 import com.henry.budgetmvp.viewmodel.AuthViewModel
 import com.henry.budgetmvp.viewmodel.BudgetViewModel
@@ -76,8 +77,21 @@ class MainActivity : ComponentActivity() {
             val transactions by viewModel.transactions.collectAsState(initial = emptyList())
             val pendingInvites by viewModel.pendingInvites.collectAsState()
 
-            val totalReceivedIncome = remember(transactions) {
-                transactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+            var currentDate by remember { mutableStateOf(LocalDate.now()) }
+
+            val filteredTransactions = remember(transactions, currentDate) {
+                transactions.filter { tx ->
+                    try {
+                        val txDate = LocalDate.parse(tx.date)
+                        txDate.month == currentDate.month && txDate.year == currentDate.year
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+            }
+
+            val totalReceivedIncome = remember(filteredTransactions) {
+                filteredTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
             }
 
             val user by authViewModel.userState.collectAsState()
@@ -360,7 +374,12 @@ class MainActivity : ComponentActivity() {
                                         // (1) THE TOTAL POOL CARD
                                         item {
                                             Spacer(modifier = Modifier.height(8.dp))
-                                            TotalPoolCard(unassignedFunds)
+                                            TotalPoolCard(
+                                                total = unassignedFunds,
+                                                currentDate = currentDate,
+                                                onPreviousMonth = { currentDate = currentDate.minusMonths(1) },
+                                                onNextMonth = { currentDate = currentDate.plusMonths(1) }
+                                            )
                                         }
 
                                     // (2) MULTIPLE INCOME DETAILS CARDS
@@ -412,7 +431,7 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 } else {
                                                     streams.forEachIndexed { index, stream ->
-                                                        val streamTransactions = transactions
+                                                        val streamTransactions = filteredTransactions
                                                             .filter { it.type == TransactionType.INCOME && it.incomeStreamId == stream.id }
                                                         
                                                         val receivedAmount = streamTransactions.sumOf { it.amount }
@@ -531,7 +550,7 @@ class MainActivity : ComponentActivity() {
                                                         )
 
                                                         categoryWithItems.items.forEachIndexed { index, item ->
-                                                            val spentAmount = transactions
+                                                            val spentAmount = filteredTransactions
                                                                 .filter { it.type == TransactionType.EXPENSE && it.itemId == item.id }
                                                                 .sumOf { it.amount }
 
@@ -647,7 +666,7 @@ class MainActivity : ComponentActivity() {
                     if (selectedStreamForDetail != null && showIncomeDetailSheet) {
                         IncomeDetailSheet(
                             stream = selectedStreamForDetail!!,
-                            transactions = transactions.filter { it.incomeStreamId == selectedStreamForDetail!!.id },
+                            transactions = filteredTransactions.filter { it.incomeStreamId == selectedStreamForDetail!!.id },
                             onDismiss = { showIncomeDetailSheet = false },
                             onEditStream = {
                                 editingStream = selectedStreamForDetail
@@ -711,7 +730,7 @@ class MainActivity : ComponentActivity() {
                     if (selectedItemForDetail != null && showItemDetailSheet) {
                         ItemDetailSheet(
                             item = selectedItemForDetail!!,
-                            transactions = transactions.filter { it.itemId == selectedItemForDetail!!.id },
+                            transactions = filteredTransactions.filter { it.itemId == selectedItemForDetail!!.id },
                             onDismiss = { showItemDetailSheet = false },
                             onEditItem = {
                                 editingItem = selectedItemForDetail

@@ -82,6 +82,7 @@ class MainActivity : ComponentActivity() {
 
             val isSyncing by viewModel.isSyncing.collectAsState()
             val updateInfo by viewModel.updateInfo.collectAsState()
+            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
             val packageInfo = remember {
                 try {
@@ -319,6 +320,7 @@ class MainActivity : ComponentActivity() {
                                     onInviteMember = { viewModel.inviteMember(it) },
                                     onAcceptInvite = { viewModel.acceptInvite(it) },
                                     onDeclineInvite = { viewModel.declineInvite(it) },
+                                    onRefresh = { viewModel.refreshInvites() },
                                     onLeaveHousehold = { viewModel.leaveHousehold() }
                                 )
                             }
@@ -760,8 +762,7 @@ class MainActivity : ComponentActivity() {
                                     onClick = {
                                         if (updateInfo!!.updateUrl.isNotBlank()) {
                                             try {
-                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo!!.updateUrl))
-                                                startActivity(intent)
+                                                uriHandler.openUri(updateInfo!!.updateUrl)
                                             } catch (e: Exception) {
                                                 e.printStackTrace()
                                             }

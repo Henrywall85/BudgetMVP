@@ -104,9 +104,10 @@ class BudgetViewModel(
 
     private fun refreshPendingInvites(email: String) {
         if (email.isBlank()) return
+        val cleanEmail = email.lowercase().trim()
         viewModelScope.launch {
             try {
-                val invites = firestore.getPendingInvitesForEmail(email)
+                val invites = firestore.getPendingInvitesForEmail(cleanEmail)
                 _pendingInvites.value = invites
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -121,9 +122,9 @@ class BudgetViewModel(
         viewModelScope.launch {
             try {
                 val invite = HouseholdInvite(
-                    fromEmail = fromProfile.email,
+                    fromEmail = fromProfile.email.lowercase().trim(),
                     fromUserId = fromProfile.userId,
-                    toEmail = toEmail,
+                    toEmail = toEmail.lowercase().trim(),
                     householdId = hid
                 )
                 firestore.sendInvite(invite)
@@ -131,6 +132,11 @@ class BudgetViewModel(
                 e.printStackTrace()
             }
         }
+    }
+
+    fun refreshInvites() {
+        val email = _userProfile.value?.email ?: return
+        refreshPendingInvites(email)
     }
 
     fun acceptInvite(invite: HouseholdInvite) {

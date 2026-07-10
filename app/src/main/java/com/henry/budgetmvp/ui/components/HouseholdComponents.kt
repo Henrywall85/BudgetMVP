@@ -28,6 +28,7 @@ fun HouseholdPage(
     onInviteMember: (String) -> Unit,
     onAcceptInvite: (HouseholdInvite) -> Unit,
     onDeclineInvite: (HouseholdInvite) -> Unit,
+    onRefresh: () -> Unit,
     onLeaveHousehold: () -> Unit
 ) {
     var inviteEmail by remember { mutableStateOf("") }
@@ -39,6 +40,16 @@ fun HouseholdPage(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
+        // 0. REFRESH ACTION
+        TextButton(
+            onClick = onRefresh,
+            modifier = Modifier.align(Alignment.End)
+        ) {
+            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Check for invites")
+        }
+
         // 1. INCOMING INVITES SECTION (Only shows if there are invites)
         if (pendingInvites.isNotEmpty()) {
             Text(

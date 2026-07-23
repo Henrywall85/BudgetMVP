@@ -84,6 +84,7 @@ fun EnvelopeItemRow(
     item: EnvelopeItem, 
     spentAmount: Double, 
     totalAssignedForMonth: Double,
+    isPaycheckView: Boolean = false,
     onClick: () -> Unit
 ) {
     Box(
@@ -106,13 +107,13 @@ fun EnvelopeItemRow(
                 )
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "assigned",
+                        text = if (isPaycheckView) "from check" else "assigned",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "$${"%,.2f".format(totalAssignedForMonth)}",
+                        text = "$${"%,.2f".format(if (isPaycheckView) totalAssignedForMonth else totalAssignedForMonth)}", // Just showing the calculated total for now
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -120,19 +121,20 @@ fun EnvelopeItemRow(
                     Text(
                         text = "of $${"%,.2f".format(item.targetAmount)} goal",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (totalAssignedForMonth >= item.targetAmount) Color(0xFF059669) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        fontWeight = if (totalAssignedForMonth >= item.targetAmount) FontWeight.Bold else FontWeight.Normal
+                        color = if (totalAssignedForMonth >= item.targetAmount - 0.001 && item.targetAmount > 0) Color(0xFF059669) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        fontWeight = if (totalAssignedForMonth >= item.targetAmount - 0.001 && item.targetAmount > 0) FontWeight.Bold else FontWeight.Normal
                     )
                 }
             }
             
             Spacer(modifier = Modifier.height(10.dp))
             
-            val progress = if (totalAssignedForMonth > 0) (spentAmount / totalAssignedForMonth).toFloat().coerceIn(0f, 1f) else 0f
+            val baseAmountForVisuals = if (isPaycheckView) totalAssignedForMonth else item.targetAmount
+            val progress = if (baseAmountForVisuals > 0) (spentAmount / baseAmountForVisuals).toFloat().coerceIn(0f, 1f) else if (spentAmount > 0) 1f else 0f
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier.fillMaxWidth().height(8.dp),
-                color = if (spentAmount > totalAssignedForMonth) Color(0xFFDC2626) else Color(0xFF059669),
+                color = if (spentAmount > baseAmountForVisuals + 0.001 && baseAmountForVisuals > 0) Color(0xFFDC2626) else if (spentAmount > 0 && baseAmountForVisuals <= 0) Color(0xFFDC2626) else Color(0xFF059669),
                 trackColor = Color(0xFFE5E7EB),
                 strokeCap = StrokeCap.Round
             )
@@ -147,17 +149,17 @@ fun EnvelopeItemRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
                 )
-                if (spentAmount > totalAssignedForMonth) {
+                if (spentAmount > baseAmountForVisuals + 0.001) {
                     Text(
-                        text = "Over by $${"%,.2f".format(spentAmount - totalAssignedForMonth)}",
+                        text = "Over by $${"%,.2f".format(spentAmount - baseAmountForVisuals)}",
                         style = MaterialTheme.typography.labelMedium,
                         color = Color(0xFFDC2626),
                         fontWeight = FontWeight.Bold
                     )
                 } else {
-                    val remaining = totalAssignedForMonth - spentAmount
+                    val remaining = baseAmountForVisuals - spentAmount
                     Text(
-                        text = "$${"%,.2f".format(remaining)} left",
+                        text = "$${"%,.2f".format(if (kotlin.math.abs(remaining) < 0.001) 0.0 else remaining)} left",
                         style = MaterialTheme.typography.labelMedium,
                         color = Color(0xFF059669),
                         fontWeight = FontWeight.Medium
@@ -173,12 +175,16 @@ fun EnvelopeItemRow(
 fun ItemDetailSheet(
     item: EnvelopeItem,
     transactions: List<BudgetTransaction>,
+    totalAssigned: Double,
+    isPaycheckView: Boolean = false,
     onDismiss: () -> Unit,
     onEditItem: () -> Unit,
     onEditTransaction: (BudgetTransaction) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val spentAmount = transactions.sumOf { it.amount }
+    val baseAmount = if (isPaycheckView) totalAssigned else item.targetAmount
+    val remaining = baseAmount - spentAmount
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -218,13 +224,15 @@ fun ItemDetailSheet(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
-                        Text("Assigned", style = MaterialTheme.typography.labelSmall)
-                        Text("$${"%,.2f".format(item.allocatedAmount)}", fontWeight = FontWeight.Bold)
-                        Text(
-                            "Goal: $${"%,.2f".format(item.targetAmount)}", 
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
+                        Text(if (isPaycheckView) "Assigned" else "Goal", style = MaterialTheme.typography.labelSmall)
+                        Text("$${"%,.2f".format(baseAmount)}", fontWeight = FontWeight.Bold)
+                        if (isPaycheckView) {
+                            Text(
+                                "Goal: $${"%,.2f".format(item.targetAmount)}", 
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
                     }
                     Column {
                         Text("Spent", style = MaterialTheme.typography.labelSmall)
@@ -232,11 +240,10 @@ fun ItemDetailSheet(
                     }
                     Column {
                         Text("Left", style = MaterialTheme.typography.labelSmall)
-                        val remaining = item.allocatedAmount - spentAmount
                         Text(
-                            "$${"%,.2f".format(remaining)}", 
+                            "$${"%,.2f".format(if (kotlin.math.abs(remaining) < 0.001) 0.0 else remaining)}", 
                             fontWeight = FontWeight.Bold,
-                            color = if (remaining < 0) Color(0xFFDC2626) else Color(0xFF059669)
+                            color = if (remaining < -0.001) Color(0xFFDC2626) else Color(0xFF059669)
                         )
                     }
                 }
@@ -304,7 +311,7 @@ fun ItemDetailSheet(
                             text = "$${"%,.2f".format(transaction.amount)}",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
-                            color = if (transaction.type == TransactionType.EXPENSE) Color(0xFFDC2626) else Color(0xFF059669)
+                            color = if (transaction.type == TransactionType.INCOME) Color(0xFF059669) else MaterialTheme.colorScheme.onSurface
                         )
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
@@ -378,6 +385,7 @@ fun EnvelopeItemEntrySheet(
     categoryId: String,
     targetItem: EnvelopeItem?,
     selectedPaycheckPlannedAmount: Double? = null,
+    isPaycheckSelected: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (String, Double, Double?) -> Unit,
     onDelete: () -> Unit
@@ -433,14 +441,14 @@ fun EnvelopeItemEntrySheet(
                 },
                 label = { Text("Monthly Target Amount (Goal)") },
                 placeholder = { Text("$0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = if (isPaycheckSelected) ImeAction.Next else ImeAction.Done),
+                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }, onDone = { focusManager.clearFocus() }),
                 visualTransformation = commaTransformation,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
 
-            if (selectedPaycheckPlannedAmount != null || targetItem != null) {
+            if (isPaycheckSelected) {
                 OutlinedTextField(
                     value = plannedFromPaycheck,
                     onValueChange = { input ->

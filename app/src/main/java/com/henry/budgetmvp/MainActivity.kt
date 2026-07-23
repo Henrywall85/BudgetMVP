@@ -62,6 +62,7 @@ enum class Screen {
 class MainActivity : ComponentActivity() {
     private val db by lazy {
         Room.databaseBuilder(applicationContext, AppDatabase::class.java, "budget_db")
+            .fallbackToDestructiveMigration()
             .build()
     }
 
@@ -159,7 +160,7 @@ class MainActivity : ComponentActivity() {
             var showIncomeSheet by remember { mutableStateOf(false) }
             var editingStream by remember { mutableStateOf<IncomeStream?>(null) }
 
-            val unassignedFunds by remember(totalReceivedIncome, totalPlannedIncomeForMonth, categoriesWithItems, selectedPaycheck, assignments) {
+            val unassignedFunds by remember(totalReceivedIncome, totalPlannedIncomeForMonth, categoriesWithItems, selectedPaycheck, assignments, filteredTransactions) {
                 derivedStateOf {
                     val validItemIds = categoriesWithItems.flatMap { it.items }.map { it.id }.toSet()
 
@@ -170,7 +171,16 @@ class MainActivity : ComponentActivity() {
                             it.paycheckDate == selectedPaycheck!!.date 
                         }
                         val plannedAmount = paycheckAssignments.sumOf { it.amount }
-                        selectedPaycheck!!.amount - plannedAmount
+                        
+                        // Use actual transaction if it exists for this paycheck
+                        val linkedTransaction = filteredTransactions.find { 
+                            it.type == TransactionType.INCOME && 
+                            it.incomeStreamId == selectedPaycheck!!.incomeStreamId &&
+                            it.linkedPaycheckDate == selectedPaycheck!!.date 
+                        }
+                        
+                        val baselineAmount = linkedTransaction?.amount ?: selectedPaycheck!!.amount
+                        baselineAmount - plannedAmount
                     } else {
                         val totalAssignedThisMonth = assignments.filter { assignment ->
                             if (assignment.itemId !in validItemIds) return@filter false
@@ -179,7 +189,18 @@ class MainActivity : ComponentActivity() {
                                 assignDate.month == currentDate.month && assignDate.year == currentDate.year
                             } catch (e: Exception) { false }
                         }.sumOf { it.amount }
-                        totalPlannedIncomeForMonth - totalAssignedThisMonth
+
+                        // Calculation for "All Income": Sum of all (Actual if exists, else Planned) for month
+                        val totalBaselineForMonth = scheduledPaychecks.sumOf { scheduled ->
+                            val linked = filteredTransactions.find { 
+                                it.type == TransactionType.INCOME && 
+                                it.incomeStreamId == scheduled.incomeStreamId &&
+                                it.linkedPaycheckDate == scheduled.date 
+                            }
+                            linked?.amount ?: scheduled.amount
+                        }
+                        
+                        totalBaselineForMonth - totalAssignedThisMonth
                     }
                 }
             }
@@ -434,6 +455,10 @@ class MainActivity : ComponentActivity() {
                                             PaycheckSelector(
                                                 paychecks = scheduledPaychecks,
                                                 selectedPaycheck = selectedPaycheck,
+                                                linkedPaycheckDates = filteredTransactions
+                                                    .filter { it.type == TransactionType.INCOME && it.linkedPaycheckDate != null }
+                                                    .mapNotNull { it.linkedPaycheckDate }
+                                                    .toSet(),
                                                 onPaycheckSelected = { selectedPaycheck = it }
                                             )
                                         }
@@ -633,6 +658,7 @@ class MainActivity : ComponentActivity() {
                                                                 item = item,
                                                                 spentAmount = spentAmount,
                                                                 totalAssignedForMonth = totalAssignedForMonth,
+                                                                isPaycheckView = selectedPaycheck != null,
                                                                 onClick = {
                                                                     selectedItemForDetail = item
                                                                     showItemDetailSheet = true
@@ -688,7 +714,8 @@ class MainActivity : ComponentActivity() {
                                 TransactionPage(
                                     categoriesWithItems = categoriesWithItems,
                                     incomeStreams = streams,
-                                    onConfirm = { type, amount, date, merchant, note, itemId, incomeStreamId ->
+                                    scheduledPaychecks = scheduledPaychecks,
+                                    onConfirm = { type, amount, date, merchant, note, itemId, incomeStreamId, linkedPaycheckDate ->
                                         val transaction = BudgetTransaction(
                                             userId = user?.uid ?: "",
                                             householdId = "", // ViewModel will fill this
@@ -698,7 +725,8 @@ class MainActivity : ComponentActivity() {
                                             merchant = merchant,
                                             note = note,
                                             itemId = itemId,
-                                            incomeStreamId = incomeStreamId
+                                            incomeStreamId = incomeStreamId,
+                                            linkedPaycheckDate = linkedPaycheckDate
                                         )
                                         viewModel.saveTransaction(transaction)
                                         currentScreen = Screen.BUDGET
@@ -784,6 +812,7 @@ class MainActivity : ComponentActivity() {
                             categoryId = activeCategoryId ?: "",
                             targetItem = editingItem,
                             selectedPaycheckPlannedAmount = currentAssignment?.amount,
+                            isPaycheckSelected = selectedPaycheck != null,
                             onDismiss = { showItemSheet = false },
                             onConfirm = { name, target, planned ->
                                 val itemId = editingItem?.id ?: java.util.UUID.randomUUID().toString()
@@ -821,9 +850,19 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (selectedItemForDetail != null && showItemDetailSheet) {
+                        val itemTotalAssigned = assignments.filter { assignment ->
+                            if (assignment.itemId != selectedItemForDetail!!.id) return@filter false
+                            try {
+                                val assignDate = LocalDate.parse(assignment.paycheckDate)
+                                assignDate.month == currentDate.month && assignDate.year == currentDate.year
+                            } catch (e: Exception) { false }
+                        }.sumOf { it.amount }
+
                         ItemDetailSheet(
                             item = selectedItemForDetail!!,
                             transactions = filteredTransactions.filter { it.itemId == selectedItemForDetail!!.id },
+                            totalAssigned = itemTotalAssigned,
+                            isPaycheckView = selectedPaycheck != null,
                             onDismiss = { showItemDetailSheet = false },
                             onEditItem = {
                                 editingItem = selectedItemForDetail
@@ -844,8 +883,9 @@ class MainActivity : ComponentActivity() {
                             targetTransaction = editingTransaction,
                             categoriesWithItems = categoriesWithItems,
                             incomeStreams = streams,
+                            scheduledPaychecks = scheduledPaychecks,
                             onDismiss = { showTransactionEditSheet = false },
-                            onConfirm = { type, amount, date, merchant, note, itemId, incomeStreamId ->
+                            onConfirm = { type, amount, date, merchant, note, itemId, incomeStreamId, linkedPaycheckDate ->
                                 val transaction = editingTransaction!!.copy(
                                     userId = user?.uid ?: "",
                                     type = type,
@@ -854,7 +894,8 @@ class MainActivity : ComponentActivity() {
                                     merchant = merchant,
                                     note = note,
                                     itemId = itemId,
-                                    incomeStreamId = incomeStreamId
+                                    incomeStreamId = incomeStreamId,
+                                    linkedPaycheckDate = linkedPaycheckDate
                                 )
                                 viewModel.saveTransaction(transaction)
                                 showTransactionEditSheet = false

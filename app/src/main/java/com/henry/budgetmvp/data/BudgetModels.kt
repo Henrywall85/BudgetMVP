@@ -68,7 +68,8 @@ data class BudgetTransaction(
     val merchant: String = "",
     val note: String = "",
     val itemId: String? = null, // For Expenses
-    val incomeStreamId: String? = null // For Income
+    val incomeStreamId: String? = null, // For Income
+    val linkedPaycheckDate: String? = null // For linking income to a planned payday
 )
 
 @Entity(tableName = "user_profile_table")

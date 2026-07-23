@@ -39,12 +39,14 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
+import androidx.compose.material.icons.filled.CheckCircle
 import com.henry.budgetmvp.util.ScheduledPaycheck
 
 @Composable
 fun PaycheckSelector(
     paychecks: List<ScheduledPaycheck>,
     selectedPaycheck: ScheduledPaycheck?,
+    linkedPaycheckDates: Set<String> = emptySet(),
     onPaycheckSelected: (ScheduledPaycheck?) -> Unit
 ) {
     if (paychecks.isEmpty()) return
@@ -81,14 +83,26 @@ fun PaycheckSelector(
                 val paycheck = paychecks[index]
                 val isSelected = selectedPaycheck == paycheck
                 val dateStr = formatIsoDate(paycheck.date)
+                val isReceived = linkedPaycheckDates.contains(paycheck.date)
 
                 FilterChip(
                     selected = isSelected,
                     onClick = { onPaycheckSelected(paycheck) },
                     label = {
-                        Column {
-                            Text(paycheck.sourceName, style = MaterialTheme.typography.labelSmall)
-                            Text(dateStr, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column {
+                                Text(paycheck.sourceName, style = MaterialTheme.typography.labelSmall)
+                                Text(dateStr, fontWeight = FontWeight.Bold)
+                            }
+                            if (isReceived) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Received",
+                                    modifier = Modifier.size(14.dp),
+                                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else Color(0xFF059669)
+                                )
+                            }
                         }
                     },
                     colors = FilterChipDefaults.filterChipColors(

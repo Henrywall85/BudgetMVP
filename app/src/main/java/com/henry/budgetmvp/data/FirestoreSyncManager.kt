@@ -13,19 +13,22 @@ class FirestoreSyncManager {
         val categories = db.collection("categories").whereEqualTo("householdId", householdId).get().await().toObjects<BudgetCategory>()
         val items = db.collection("envelopeItems").whereEqualTo("householdId", householdId).get().await().toObjects<EnvelopeItem>()
         val transactions = db.collection("transactions").whereEqualTo("householdId", householdId).get().await().toObjects<BudgetTransaction>()
+        val assignments = db.collection("paycheckAssignments").whereEqualTo("householdId", householdId).get().await().toObjects<PaycheckAssignment>()
         
         // 2. Fetch by User ID to catch legacy data (missing householdId field)
         val userIncome = db.collection("incomeStreams").whereEqualTo("userId", userId).get().await().toObjects<IncomeStream>()
         val userCategories = db.collection("categories").whereEqualTo("userId", userId).get().await().toObjects<BudgetCategory>()
         val userItems = db.collection("envelopeItems").whereEqualTo("userId", userId).get().await().toObjects<EnvelopeItem>()
         val userTransactions = db.collection("transactions").whereEqualTo("userId", userId).get().await().toObjects<BudgetTransaction>()
+        val userAssignments = db.collection("paycheckAssignments").whereEqualTo("userId", userId).get().await().toObjects<PaycheckAssignment>()
 
         // Combine and deduplicate by ID
         return mapOf(
             "income" to (income + userIncome).distinctBy { it.id },
             "categories" to (categories + userCategories).distinctBy { it.id },
             "items" to (items + userItems).distinctBy { it.id },
-            "transactions" to (transactions + userTransactions).distinctBy { it.id }
+            "transactions" to (transactions + userTransactions).distinctBy { it.id },
+            "assignments" to (assignments + userAssignments).distinctBy { it.id }
         )
     }
 
@@ -96,5 +99,33 @@ class FirestoreSyncManager {
 
     suspend fun deleteTransaction(id: String) {
         db.collection("transactions").document(id).delete().await()
+    }
+
+    // --- Paycheck Assignments ---
+    suspend fun savePaycheckAssignment(assignment: PaycheckAssignment) {
+        db.collection("paycheckAssignments").document(assignment.id).set(assignment).await()
+    }
+
+    suspend fun deletePaycheckAssignment(id: String) {
+        db.collection("paycheckAssignments").document(id).delete().await()
+    }
+
+    suspend fun clearHouseholdData(householdId: String) {
+        val collections = listOf("incomeStreams", "categories", "envelopeItems", "transactions", "paycheckAssignments")
+        
+        collections.forEach { collectionName ->
+            val snapshot = db.collection(collectionName)
+                .whereEqualTo("householdId", householdId)
+                .get()
+                .await()
+            
+            if (!snapshot.isEmpty) {
+                val batch = db.batch()
+                snapshot.documents.forEach { doc ->
+                    batch.delete(doc.reference)
+                }
+                batch.commit().await()
+            }
+        }
     }
 }

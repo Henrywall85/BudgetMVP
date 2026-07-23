@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -47,6 +49,11 @@ import java.time.LocalDate
 import com.henry.budgetmvp.ui.components.*
 import com.henry.budgetmvp.viewmodel.AuthViewModel
 import com.henry.budgetmvp.viewmodel.BudgetViewModel
+import com.henry.budgetmvp.data.PaycheckAssignment
+import com.henry.budgetmvp.util.PaycheckScheduler
+import com.henry.budgetmvp.util.ScheduledPaycheck
+import java.time.YearMonth
+import java.util.UUID
 
 enum class Screen {
     LOGIN, SIGNUP, BUDGET, TRANSACTIONS, HOUSEHOLD
@@ -55,7 +62,7 @@ enum class Screen {
 class MainActivity : ComponentActivity() {
     private val db by lazy {
         Room.databaseBuilder(applicationContext, AppDatabase::class.java, "budget_db")
-            .fallbackToDestructiveMigration().build()
+            .build()
     }
 
     private val viewModel: BudgetViewModel by viewModels {
@@ -75,9 +82,25 @@ class MainActivity : ComponentActivity() {
             val streams by viewModel.incomeStreams.collectAsState(initial = emptyList())
             val categoriesWithItems by viewModel.categoriesWithItems.collectAsState(initial = emptyList())
             val transactions by viewModel.transactions.collectAsState(initial = emptyList())
+            val assignments by viewModel.paycheckAssignments.collectAsState(initial = emptyList())
             val pendingInvites by viewModel.pendingInvites.collectAsState()
 
             var currentDate by remember { mutableStateOf(LocalDate.now()) }
+
+            val scheduledPaychecks = remember(streams, currentDate) {
+                PaycheckScheduler.generateSchedule(streams, YearMonth.from(currentDate))
+            }
+            val totalPlannedIncomeForMonth = remember(scheduledPaychecks) {
+                scheduledPaychecks.sumOf { it.amount }
+            }
+            var selectedPaycheck by remember { mutableStateOf<ScheduledPaycheck?>(null) }
+            
+            // Auto-deselect if paycheck disappears (e.g. month change)
+            LaunchedEffect(scheduledPaychecks) {
+                if (selectedPaycheck != null && !scheduledPaychecks.contains(selectedPaycheck)) {
+                    selectedPaycheck = null
+                }
+            }
 
             val filteredTransactions = remember(transactions, currentDate) {
                 transactions.filter { tx ->
@@ -136,12 +159,28 @@ class MainActivity : ComponentActivity() {
             var showIncomeSheet by remember { mutableStateOf(false) }
             var editingStream by remember { mutableStateOf<IncomeStream?>(null) }
 
-            val unassignedFunds by remember(totalReceivedIncome, categoriesWithItems) {
+            val unassignedFunds by remember(totalReceivedIncome, totalPlannedIncomeForMonth, categoriesWithItems, selectedPaycheck, assignments) {
                 derivedStateOf {
-                    val totalPlannedExpenses = categoriesWithItems.sumOf { cat ->
-                        cat.items.sumOf { it.targetAmount }
+                    val validItemIds = categoriesWithItems.flatMap { it.items }.map { it.id }.toSet()
+
+                    if (selectedPaycheck != null) {
+                        val paycheckAssignments = assignments.filter { 
+                            it.itemId in validItemIds &&
+                            it.incomeStreamId == selectedPaycheck!!.incomeStreamId && 
+                            it.paycheckDate == selectedPaycheck!!.date 
+                        }
+                        val plannedAmount = paycheckAssignments.sumOf { it.amount }
+                        selectedPaycheck!!.amount - plannedAmount
+                    } else {
+                        val totalAssignedThisMonth = assignments.filter { assignment ->
+                            if (assignment.itemId !in validItemIds) return@filter false
+                            try {
+                                val assignDate = LocalDate.parse(assignment.paycheckDate)
+                                assignDate.month == currentDate.month && assignDate.year == currentDate.year
+                            } catch (e: Exception) { false }
+                        }.sumOf { it.amount }
+                        totalPlannedIncomeForMonth - totalAssignedThisMonth
                     }
-                    totalReceivedIncome - totalPlannedExpenses
                 }
             }
 
@@ -233,6 +272,25 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
                                 actions = {
+                                    // Sync Status Indicator
+                                    if (isSyncing) {
+                                        Icon(
+                                            imageVector = Icons.Default.Sync,
+                                            contentDescription = "Syncing",
+                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.CloudDone,
+                                            contentDescription = "Synced",
+                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.width(8.dp))
+
                                     if (currentScreen != Screen.HOUSEHOLD) {
                                         IconButton(onClick = { currentScreen = Screen.HOUSEHOLD }) {
                                             Icon(
@@ -359,7 +417,8 @@ class MainActivity : ComponentActivity() {
                                     onAcceptInvite = { viewModel.acceptInvite(it) },
                                     onDeclineInvite = { viewModel.declineInvite(it) },
                                     onRefresh = { viewModel.refreshInvites() },
-                                    onLeaveHousehold = { viewModel.leaveHousehold() }
+                                    onLeaveHousehold = { viewModel.leaveHousehold() },
+                                    onResetData = { viewModel.resetAllHouseholdData() }
                                 )
                             }
                             Screen.BUDGET -> {
@@ -371,9 +430,17 @@ class MainActivity : ComponentActivity() {
                                         verticalArrangement = Arrangement.spacedBy(20.dp),
                                         contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)
                                     ) {
+                                        item {
+                                            PaycheckSelector(
+                                                paychecks = scheduledPaychecks,
+                                                selectedPaycheck = selectedPaycheck,
+                                                onPaycheckSelected = { selectedPaycheck = it }
+                                            )
+                                        }
+
                                         // (1) THE TOTAL POOL CARD
                                         item {
-                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Spacer(modifier = Modifier.height(0.dp))
                                             TotalPoolCard(
                                                 total = unassignedFunds,
                                                 currentDate = currentDate,
@@ -554,9 +621,18 @@ class MainActivity : ComponentActivity() {
                                                                 .filter { it.type == TransactionType.EXPENSE && it.itemId == item.id }
                                                                 .sumOf { it.amount }
 
+                                                            val totalAssignedForMonth = assignments.filter { assignment ->
+                                                                if (assignment.itemId != item.id) return@filter false
+                                                                try {
+                                                                    val assignDate = LocalDate.parse(assignment.paycheckDate)
+                                                                    assignDate.month == currentDate.month && assignDate.year == currentDate.year
+                                                                } catch (e: Exception) { false }
+                                                            }.sumOf { it.amount }
+
                                                             EnvelopeItemRow(
                                                                 item = item,
                                                                 spentAmount = spentAmount,
+                                                                totalAssignedForMonth = totalAssignedForMonth,
                                                                 onClick = {
                                                                     selectedItemForDetail = item
                                                                     showItemDetailSheet = true
@@ -605,13 +681,6 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.fillMaxWidth()
                                         )
                                     }
-                                }
-                                
-                                if (isSyncing) {
-                                    LinearProgressIndicator(
-                                        modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
-                                        color = MaterialTheme.colorScheme.secondary
-                                    )
                                 }
                             }
                         }
@@ -703,21 +772,45 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (showItemSheet) {
+                        val currentAssignment = if (selectedPaycheck != null && editingItem != null) {
+                            assignments.find { 
+                                it.itemId == editingItem!!.id && 
+                                it.incomeStreamId == selectedPaycheck!!.incomeStreamId && 
+                                it.paycheckDate == selectedPaycheck!!.date 
+                            }
+                        } else null
+
                         EnvelopeItemEntrySheet(
                             categoryId = activeCategoryId ?: "",
                             targetItem = editingItem,
+                            selectedPaycheckPlannedAmount = currentAssignment?.amount,
                             onDismiss = { showItemSheet = false },
-                            onConfirm = { name, target ->
+                            onConfirm = { name, target, planned ->
+                                val itemId = editingItem?.id ?: java.util.UUID.randomUUID().toString()
                                 val itemToSave = EnvelopeItem(
-                                    id = editingItem?.id ?: java.util.UUID.randomUUID().toString(),
+                                    id = itemId,
                                     userId = user?.uid ?: "",
                                     householdId = "", // ViewModel will fill this
                                     categoryId = activeCategoryId ?: "",
                                     name = name,
                                     targetAmount = target,
-                                    allocatedAmount = editingItem?.allocatedAmount ?: 0.0
+                                    allocatedAmount = 0.0 // Deprecated in favor of assignments
                                 )
                                 viewModel.saveEnvelopeItem(itemToSave)
+
+                                // Handle Assignment for selected paycheck
+                                if (selectedPaycheck != null && planned != null) {
+                                    val assignmentToSave = (currentAssignment ?: PaycheckAssignment(
+                                        userId = user?.uid ?: "",
+                                        itemId = itemId,
+                                        incomeStreamId = selectedPaycheck!!.incomeStreamId,
+                                        paycheckDate = selectedPaycheck!!.date
+                                    )).copy(amount = planned)
+                                    viewModel.savePaycheckAssignment(assignmentToSave)
+                                } else if (selectedPaycheck != null && planned == null && currentAssignment != null) {
+                                    viewModel.deletePaycheckAssignment(currentAssignment)
+                                }
+
                                 showItemSheet = false
                             },
                             onDelete = {

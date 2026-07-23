@@ -216,8 +216,16 @@ class BudgetViewModel(
                     updated
                 } ?: emptyList()
 
+                val assignmentsList = (data["assignments"] as? List<PaycheckAssignment>)?.map { assignment ->
+                    val updated = if (assignment.householdId.isEmpty()) assignment.copy(householdId = householdId) else assignment
+                    if (assignment.householdId.isEmpty()) {
+                        try { firestore.savePaycheckAssignment(updated) } catch (e: Exception) {}
+                    }
+                    updated
+                } ?: emptyList()
+
                 // Perform all database updates in a single transaction
-                dao.syncAllData(incomeList, categoriesList, itemsList, transactionsList)
+                dao.syncAllData(incomeList, categoriesList, itemsList, transactionsList, assignmentsList)
 
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -240,6 +248,11 @@ class BudgetViewModel(
     @OptIn(ExperimentalCoroutinesApi::class)
     val transactions: Flow<List<BudgetTransaction>> = _householdId.flatMapLatest { hid ->
         if (hid == null) flowOf(emptyList()) else dao.getAllTransactions(hid)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val paycheckAssignments: Flow<List<PaycheckAssignment>> = _householdId.flatMapLatest { hid ->
+        if (hid == null) flowOf(emptyList()) else dao.getAllPaycheckAssignments(hid)
     }
 
     fun joinHousehold(newHouseholdId: String) {
@@ -276,15 +289,29 @@ class BudgetViewModel(
         val hid = _householdId.value ?: _userId.value ?: return
         val streamWithHid = if (stream.householdId.isEmpty()) stream.copy(householdId = hid) else stream
         viewModelScope.launch { 
+            _isSyncing.value = true
             dao.upsertIncomeStream(streamWithHid)
-            try { firestore.saveIncomeStream(streamWithHid) } catch (e: Exception) { e.printStackTrace() }
+            try { 
+                firestore.saveIncomeStream(streamWithHid) 
+            } catch (e: Exception) { 
+                e.printStackTrace() 
+            } finally {
+                _isSyncing.value = false
+            }
         }
     }
 
     fun deleteIncomeStream(stream: IncomeStream) {
         viewModelScope.launch { 
+            _isSyncing.value = true
             dao.deleteIncomeStream(stream)
-            try { firestore.deleteIncomeStream(stream.id) } catch (e: Exception) { e.printStackTrace() }
+            try { 
+                firestore.deleteIncomeStream(stream.id) 
+            } catch (e: Exception) { 
+                e.printStackTrace() 
+            } finally {
+                _isSyncing.value = false
+            }
         }
     }
 
@@ -292,15 +319,29 @@ class BudgetViewModel(
         val hid = _householdId.value ?: _userId.value ?: return
         val catWithHid = if (category.householdId.isEmpty()) category.copy(householdId = hid) else category
         viewModelScope.launch { 
+            _isSyncing.value = true
             dao.upsertCategory(catWithHid)
-            try { firestore.saveCategory(catWithHid) } catch (e: Exception) { e.printStackTrace() }
+            try { 
+                firestore.saveCategory(catWithHid) 
+            } catch (e: Exception) { 
+                e.printStackTrace() 
+            } finally {
+                _isSyncing.value = false
+            }
         }
     }
 
     fun deleteCategory(category: BudgetCategory) {
         viewModelScope.launch { 
+            _isSyncing.value = true
             dao.deleteCategory(category)
-            try { firestore.deleteCategory(category.id) } catch (e: Exception) { e.printStackTrace() }
+            try { 
+                firestore.deleteCategory(category.id) 
+            } catch (e: Exception) { 
+                e.printStackTrace() 
+            } finally {
+                _isSyncing.value = false
+            }
         }
     }
 
@@ -308,15 +349,29 @@ class BudgetViewModel(
         val hid = _householdId.value ?: _userId.value ?: return
         val itemWithHid = if (item.householdId.isEmpty()) item.copy(householdId = hid) else item
         viewModelScope.launch { 
+            _isSyncing.value = true
             dao.upsertEnvelopeItem(itemWithHid)
-            try { firestore.saveEnvelopeItem(itemWithHid) } catch (e: Exception) { e.printStackTrace() }
+            try { 
+                firestore.saveEnvelopeItem(itemWithHid) 
+            } catch (e: Exception) { 
+                e.printStackTrace() 
+            } finally {
+                _isSyncing.value = false
+            }
         }
     }
 
     fun deleteEnvelopeItem(item: EnvelopeItem) {
         viewModelScope.launch { 
+            _isSyncing.value = true
             dao.deleteEnvelopeItem(item)
-            try { firestore.deleteEnvelopeItem(item.id) } catch (e: Exception) { e.printStackTrace() }
+            try { 
+                firestore.deleteEnvelopeItem(item.id) 
+            } catch (e: Exception) { 
+                e.printStackTrace() 
+            } finally {
+                _isSyncing.value = false
+            }
         }
     }
 
@@ -324,15 +379,76 @@ class BudgetViewModel(
         val hid = _householdId.value ?: _userId.value ?: return
         val transWithHid = if (transaction.householdId.isEmpty()) transaction.copy(householdId = hid) else transaction
         viewModelScope.launch { 
+            _isSyncing.value = true
             dao.upsertTransaction(transWithHid)
-            try { firestore.saveTransaction(transWithHid) } catch (e: Exception) { e.printStackTrace() }
+            try { 
+                firestore.saveTransaction(transWithHid) 
+            } catch (e: Exception) { 
+                e.printStackTrace() 
+            } finally {
+                _isSyncing.value = false
+            }
         }
     }
 
     fun deleteTransaction(transaction: BudgetTransaction) {
         viewModelScope.launch { 
+            _isSyncing.value = true
             dao.deleteTransaction(transaction)
-            try { firestore.deleteTransaction(transaction.id) } catch (e: Exception) { e.printStackTrace() }
+            try { 
+                firestore.deleteTransaction(transaction.id) 
+            } catch (e: Exception) { 
+                e.printStackTrace() 
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
+    fun savePaycheckAssignment(assignment: PaycheckAssignment) {
+        val hid = _householdId.value ?: _userId.value ?: return
+        val assignmentWithHid = if (assignment.householdId.isEmpty()) assignment.copy(householdId = hid) else assignment
+        viewModelScope.launch {
+            _isSyncing.value = true
+            dao.upsertPaycheckAssignment(assignmentWithHid)
+            try { 
+                firestore.savePaycheckAssignment(assignmentWithHid) 
+            } catch (e: Exception) { 
+                e.printStackTrace() 
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
+    fun deletePaycheckAssignment(assignment: PaycheckAssignment) {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            dao.deletePaycheckAssignment(assignment)
+            try { 
+                firestore.deletePaycheckAssignment(assignment.id) 
+            } catch (e: Exception) { 
+                e.printStackTrace() 
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
+    fun resetAllHouseholdData() {
+        val hid = _householdId.value ?: return
+        viewModelScope.launch {
+            _isSyncing.value = true
+            try {
+                firestore.clearHouseholdData(hid)
+                dao.clearHouseholdData(hid)
+                _statusMessage.emit("Budget data reset successfully")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _statusMessage.emit("Failed to reset data: ${e.message}")
+            } finally {
+                _isSyncing.value = false
+            }
         }
     }
 }

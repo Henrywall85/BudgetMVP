@@ -92,6 +92,27 @@ enum class TransactionType {
     INCOME, EXPENSE
 }
 
+@Entity(
+    tableName = "paycheck_assignments",
+    foreignKeys = [
+        ForeignKey(
+            entity = EnvelopeItem::class,
+            parentColumns = ["id"],
+            childColumns = ["itemId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ]
+)
+data class PaycheckAssignment(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val userId: String = "",
+    val householdId: String = "",
+    val itemId: String = "",
+    val incomeStreamId: String = "",
+    val paycheckDate: String = "", // ISO Date of the expected paycheck
+    val amount: Double = 0.0
+)
+
 data class CategoryWithItems(
     @Embedded val category: BudgetCategory = BudgetCategory(),
     @Relation(

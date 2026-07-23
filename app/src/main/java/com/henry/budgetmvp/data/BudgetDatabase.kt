@@ -45,13 +45,48 @@ interface BudgetDao {
     @Delete
     suspend fun deleteTransaction(transaction: BudgetTransaction)
 
+    @Query("SELECT * FROM paycheck_assignments WHERE householdId = :householdId")
+    fun getAllPaycheckAssignments(householdId: String): Flow<List<PaycheckAssignment>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertPaycheckAssignment(assignment: PaycheckAssignment)
+
+    @Delete
+    suspend fun deletePaycheckAssignment(assignment: PaycheckAssignment)
+
+    @Query("DELETE FROM paycheck_assignments WHERE householdId = :householdId")
+    suspend fun deleteAssignmentsForHousehold(householdId: String)
+
+    @Query("DELETE FROM multi_income_table WHERE householdId = :householdId")
+    suspend fun deleteIncomeStreamsForHousehold(householdId: String)
+
+    @Query("DELETE FROM budget_category_table WHERE householdId = :householdId")
+    suspend fun deleteCategoriesForHousehold(householdId: String)
+
+    @Query("DELETE FROM envelope_item_table WHERE householdId = :householdId")
+    suspend fun deleteItemsForHousehold(householdId: String)
+
+    @Query("DELETE FROM transaction_table WHERE householdId = :householdId")
+    suspend fun deleteTransactionsForHousehold(householdId: String)
+
+    @Transaction
+    suspend fun clearHouseholdData(householdId: String) {
+        deleteAssignmentsForHousehold(householdId)
+        deleteTransactionsForHousehold(householdId)
+        deleteItemsForHousehold(householdId)
+        deleteCategoriesForHousehold(householdId)
+        deleteIncomeStreamsForHousehold(householdId)
+    }
+
     @Transaction
     suspend fun syncAllData(
         income: List<IncomeStream>,
         categories: List<BudgetCategory>,
         items: List<EnvelopeItem>,
-        transactions: List<BudgetTransaction>
+        transactions: List<BudgetTransaction>,
+        assignments: List<PaycheckAssignment>
     ) {
+        assignments.forEach { upsertPaycheckAssignment(it) }
         income.forEach { upsertIncomeStream(it) }
         categories.forEach { upsertCategory(it) }
         items.forEach { upsertEnvelopeItem(it) }
@@ -60,8 +95,8 @@ interface BudgetDao {
 }
 
 @Database(
-    entities = [IncomeStream::class, BudgetCategory::class, EnvelopeItem::class, BudgetTransaction::class, UserProfile::class],
-    version = 14,
+    entities = [IncomeStream::class, BudgetCategory::class, EnvelopeItem::class, BudgetTransaction::class, UserProfile::class, PaycheckAssignment::class],
+    version = 16,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

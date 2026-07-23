@@ -80,7 +80,12 @@ fun CategoryHeader(
 }
 
 @Composable
-fun EnvelopeItemRow(item: EnvelopeItem, spentAmount: Double, onClick: () -> Unit) {
+fun EnvelopeItemRow(
+    item: EnvelopeItem, 
+    spentAmount: Double, 
+    totalAssignedForMonth: Double,
+    onClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -101,27 +106,33 @@ fun EnvelopeItemRow(item: EnvelopeItem, spentAmount: Double, onClick: () -> Unit
                 )
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "planned",
+                        text = "assigned",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "$${"%,.2f".format(item.targetAmount)}",
+                        text = "$${"%,.2f".format(totalAssignedForMonth)}",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "of $${"%,.2f".format(item.targetAmount)} goal",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (totalAssignedForMonth >= item.targetAmount) Color(0xFF059669) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        fontWeight = if (totalAssignedForMonth >= item.targetAmount) FontWeight.Bold else FontWeight.Normal
                     )
                 }
             }
             
             Spacer(modifier = Modifier.height(10.dp))
             
-            val progress = if (item.targetAmount > 0) (spentAmount / item.targetAmount).toFloat().coerceIn(0f, 1f) else 0f
+            val progress = if (totalAssignedForMonth > 0) (spentAmount / totalAssignedForMonth).toFloat().coerceIn(0f, 1f) else 0f
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier.fillMaxWidth().height(8.dp),
-                color = if (spentAmount > item.targetAmount) Color(0xFFDC2626) else Color(0xFF059669),
+                color = if (spentAmount > totalAssignedForMonth) Color(0xFFDC2626) else Color(0xFF059669),
                 trackColor = Color(0xFFE5E7EB),
                 strokeCap = StrokeCap.Round
             )
@@ -136,15 +147,15 @@ fun EnvelopeItemRow(item: EnvelopeItem, spentAmount: Double, onClick: () -> Unit
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
                 )
-                if (spentAmount > item.targetAmount) {
+                if (spentAmount > totalAssignedForMonth) {
                     Text(
-                        text = "Over by $${"%,.2f".format(spentAmount - item.targetAmount)}",
+                        text = "Over by $${"%,.2f".format(spentAmount - totalAssignedForMonth)}",
                         style = MaterialTheme.typography.labelMedium,
                         color = Color(0xFFDC2626),
                         fontWeight = FontWeight.Bold
                     )
                 } else {
-                    val remaining = item.targetAmount - spentAmount
+                    val remaining = totalAssignedForMonth - spentAmount
                     Text(
                         text = "$${"%,.2f".format(remaining)} left",
                         style = MaterialTheme.typography.labelMedium,
@@ -168,7 +179,6 @@ fun ItemDetailSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val spentAmount = transactions.sumOf { it.amount }
-    val remaining = item.targetAmount - spentAmount
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -208,8 +218,13 @@ fun ItemDetailSheet(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
-                        Text("Planned", style = MaterialTheme.typography.labelSmall)
-                        Text("$${"%,.2f".format(item.targetAmount)}", fontWeight = FontWeight.Bold)
+                        Text("Assigned", style = MaterialTheme.typography.labelSmall)
+                        Text("$${"%,.2f".format(item.allocatedAmount)}", fontWeight = FontWeight.Bold)
+                        Text(
+                            "Goal: $${"%,.2f".format(item.targetAmount)}", 
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
                     }
                     Column {
                         Text("Spent", style = MaterialTheme.typography.labelSmall)
@@ -217,6 +232,7 @@ fun ItemDetailSheet(
                     }
                     Column {
                         Text("Left", style = MaterialTheme.typography.labelSmall)
+                        val remaining = item.allocatedAmount - spentAmount
                         Text(
                             "$${"%,.2f".format(remaining)}", 
                             fontWeight = FontWeight.Bold,
@@ -361,12 +377,14 @@ fun CategoryEntrySheet(
 fun EnvelopeItemEntrySheet(
     categoryId: String,
     targetItem: EnvelopeItem?,
+    selectedPaycheckPlannedAmount: Double? = null,
     onDismiss: () -> Unit,
-    onConfirm: (String, Double) -> Unit,
+    onConfirm: (String, Double, Double?) -> Unit,
     onDelete: () -> Unit
 ) {
     var name by remember { mutableStateOf(targetItem?.name ?: "") }
     var targetAmount by remember { mutableStateOf(targetItem?.targetAmount?.let { if (it == 0.0) "" else it.toString() } ?: "") }
+    var plannedFromPaycheck by remember { mutableStateOf(selectedPaycheckPlannedAmount?.let { if (it == 0.0) "" else it.toString() } ?: "") }
 
     val focusManager = LocalFocusManager.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -413,17 +431,41 @@ fun EnvelopeItemEntrySheet(
                         targetAmount = input
                     }
                 },
-                label = { Text("Monthly Target Amount") },
+                label = { Text("Monthly Target Amount (Goal)") },
                 placeholder = { Text("$0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                 visualTransformation = commaTransformation,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
 
+            if (selectedPaycheckPlannedAmount != null || targetItem != null) {
+                OutlinedTextField(
+                    value = plannedFromPaycheck,
+                    onValueChange = { input ->
+                        if (input.count { it == '.' } <= 1 && (input.all { it.isDigit() || it == '.' })) {
+                            plannedFromPaycheck = input
+                        }
+                    },
+                    label = { Text("Fund from SELECTED Paycheck") },
+                    placeholder = { Text("$0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                    visualTransformation = commaTransformation,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+
             Button(
-                onClick = { onConfirm(name, targetAmount.toDoubleOrNull() ?: 0.0) },
+                onClick = { 
+                    onConfirm(
+                        name, 
+                        targetAmount.toDoubleOrNull() ?: 0.0,
+                        plannedFromPaycheck.toDoubleOrNull()
+                    ) 
+                },
                 enabled = isFormValid,
                 modifier = Modifier.fillMaxWidth()
             ) {

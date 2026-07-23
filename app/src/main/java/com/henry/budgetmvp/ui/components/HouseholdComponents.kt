@@ -29,10 +29,12 @@ fun HouseholdPage(
     onAcceptInvite: (HouseholdInvite) -> Unit,
     onDeclineInvite: (HouseholdInvite) -> Unit,
     onRefresh: () -> Unit,
-    onLeaveHousehold: () -> Unit
+    onLeaveHousehold: () -> Unit,
+    onResetData: () -> Unit
 ) {
     var inviteEmail by remember { mutableStateOf("") }
     var showLeaveDialog by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -187,11 +189,23 @@ fun HouseholdPage(
 
         // 4. RESET ACTION
         OutlinedButton(
-            onClick = { showLeaveDialog = true },
+            onClick = { showResetDialog = true },
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = MaterialTheme.shapes.medium,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+        ) {
+            Text("WIPE ALL BUDGET DATA", fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedButton(
+            onClick = { showLeaveDialog = true },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = MaterialTheme.shapes.medium,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
         ) {
             Text("RESET TO INDIVIDUAL ACCOUNT", fontWeight = FontWeight.Bold)
         }
@@ -214,6 +228,30 @@ fun HouseholdPage(
                 },
                 dismissButton = {
                     TextButton(onClick = { showLeaveDialog = false }) {
+                        Text("CANCEL")
+                    }
+                }
+            )
+        }
+
+        if (showResetDialog) {
+            AlertDialog(
+                onDismissRequest = { showResetDialog = false },
+                title = { Text("Wipe All Budget Data") },
+                text = { Text("This will permanently delete all income, categories, and transactions for this household. This action CANNOT be undone. Are you sure?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            onResetData()
+                            showResetDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("WIPE EVERYTHING")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showResetDialog = false }) {
                         Text("CANCEL")
                     }
                 }

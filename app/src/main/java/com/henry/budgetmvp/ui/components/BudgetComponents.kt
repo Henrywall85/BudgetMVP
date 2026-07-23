@@ -39,6 +39,68 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
+import com.henry.budgetmvp.util.ScheduledPaycheck
+
+@Composable
+fun PaycheckSelector(
+    paychecks: List<ScheduledPaycheck>,
+    selectedPaycheck: ScheduledPaycheck?,
+    onPaycheckSelected: (ScheduledPaycheck?) -> Unit
+) {
+    if (paychecks.isEmpty()) return
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = "PLAN BY PAYCHECK",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.ExtraBold,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        androidx.compose.foundation.lazy.LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                FilterChip(
+                    selected = selectedPaycheck == null,
+                    onClick = { onPaycheckSelected(null) },
+                    label = { Text("All Income") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            }
+            items(paychecks.size) { index ->
+                val paycheck = paychecks[index]
+                val isSelected = selectedPaycheck == paycheck
+                val dateStr = formatIsoDate(paycheck.date)
+
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onPaycheckSelected(paycheck) },
+                    label = {
+                        Column {
+                            Text(paycheck.sourceName, style = MaterialTheme.typography.labelSmall)
+                            Text(dateStr, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun TotalPoolCard(
     total: Double,
@@ -102,7 +164,7 @@ fun TotalPoolCard(
                 modifier = Modifier.fillMaxWidth()
             )
             Text(
-                text = "Total Funds Available",
+                text = "Ready to Assign",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,

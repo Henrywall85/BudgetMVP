@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -49,14 +50,11 @@ import java.time.LocalDate
 import com.henry.budgetmvp.ui.components.*
 import com.henry.budgetmvp.viewmodel.AuthViewModel
 import com.henry.budgetmvp.viewmodel.BudgetViewModel
-import com.henry.budgetmvp.data.PaycheckAssignment
-import com.henry.budgetmvp.util.PaycheckScheduler
-import com.henry.budgetmvp.util.ScheduledPaycheck
-import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 enum class Screen {
-    LOGIN, SIGNUP, BUDGET, TRANSACTIONS, HOUSEHOLD
+    LOGIN, SIGNUP, BUDGET, TRANSACTIONS, HOUSEHOLD, SETTINGS
 }
 
 class MainActivity : ComponentActivity() {
@@ -83,24 +81,16 @@ class MainActivity : ComponentActivity() {
             val streams by viewModel.incomeStreams.collectAsState(initial = emptyList())
             val categoriesWithItems by viewModel.categoriesWithItems.collectAsState(initial = emptyList())
             val transactions by viewModel.transactions.collectAsState(initial = emptyList())
-            val assignments by viewModel.paycheckAssignments.collectAsState(initial = emptyList())
             val pendingInvites by viewModel.pendingInvites.collectAsState()
+            val hasAnyBudgetData by viewModel.hasAnyBudgetData.collectAsState(initial = false)
 
             var currentDate by remember { mutableStateOf(LocalDate.now()) }
+            val currentMonthYear = remember(currentDate) { 
+                currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")) 
+            }
 
-            val scheduledPaychecks = remember(streams, currentDate) {
-                PaycheckScheduler.generateSchedule(streams, YearMonth.from(currentDate))
-            }
-            val totalPlannedIncomeForMonth = remember(scheduledPaychecks) {
-                scheduledPaychecks.sumOf { it.amount }
-            }
-            var selectedPaycheck by remember { mutableStateOf<ScheduledPaycheck?>(null) }
-            
-            // Auto-deselect if paycheck disappears (e.g. month change)
-            LaunchedEffect(scheduledPaychecks) {
-                if (selectedPaycheck != null && !scheduledPaychecks.contains(selectedPaycheck)) {
-                    selectedPaycheck = null
-                }
+            val totalPlannedIncomeForMonth = remember(streams) {
+                streams.sumOf { it.monthlyAmount }
             }
 
             val filteredTransactions = remember(transactions, currentDate) {
@@ -159,49 +149,15 @@ class MainActivity : ComponentActivity() {
 
             var showIncomeSheet by remember { mutableStateOf(false) }
             var editingStream by remember { mutableStateOf<IncomeStream?>(null) }
+            
+            var forceShowBudgetForMonth by remember { mutableStateOf<String?>(null) }
 
-            val unassignedFunds by remember(totalReceivedIncome, totalPlannedIncomeForMonth, categoriesWithItems, selectedPaycheck, assignments, filteredTransactions) {
+            val unassignedFunds by remember(totalReceivedIncome, totalPlannedIncomeForMonth, categoriesWithItems) {
                 derivedStateOf {
-                    val validItemIds = categoriesWithItems.flatMap { it.items }.map { it.id }.toSet()
-
-                    if (selectedPaycheck != null) {
-                        val paycheckAssignments = assignments.filter { 
-                            it.itemId in validItemIds &&
-                            it.incomeStreamId == selectedPaycheck!!.incomeStreamId && 
-                            it.paycheckDate == selectedPaycheck!!.date 
-                        }
-                        val plannedAmount = paycheckAssignments.sumOf { it.amount }
-                        
-                        // Use actual transaction if it exists for this paycheck
-                        val linkedTransaction = filteredTransactions.find { 
-                            it.type == TransactionType.INCOME && 
-                            it.incomeStreamId == selectedPaycheck!!.incomeStreamId &&
-                            it.linkedPaycheckDate == selectedPaycheck!!.date 
-                        }
-                        
-                        val baselineAmount = linkedTransaction?.amount ?: selectedPaycheck!!.amount
-                        baselineAmount - plannedAmount
-                    } else {
-                        val totalAssignedThisMonth = assignments.filter { assignment ->
-                            if (assignment.itemId !in validItemIds) return@filter false
-                            try {
-                                val assignDate = LocalDate.parse(assignment.paycheckDate)
-                                assignDate.month == currentDate.month && assignDate.year == currentDate.year
-                            } catch (e: Exception) { false }
-                        }.sumOf { it.amount }
-
-                        // Calculation for "All Income": Sum of all (Actual if exists, else Planned) for month
-                        val totalBaselineForMonth = scheduledPaychecks.sumOf { scheduled ->
-                            val linked = filteredTransactions.find { 
-                                it.type == TransactionType.INCOME && 
-                                it.incomeStreamId == scheduled.incomeStreamId &&
-                                it.linkedPaycheckDate == scheduled.date 
-                            }
-                            linked?.amount ?: scheduled.amount
-                        }
-                        
-                        totalBaselineForMonth - totalAssignedThisMonth
+                    val totalPlannedExpenses = categoriesWithItems.sumOf { cat ->
+                        cat.items.sumOf { it.targetAmount }
                     }
+                    totalPlannedIncomeForMonth - totalPlannedExpenses
                 }
             }
 
@@ -256,6 +212,7 @@ class MainActivity : ComponentActivity() {
                                         text = when (currentScreen) {
                                             Screen.BUDGET -> "PAYCHECK BUDGET"
                                             Screen.HOUSEHOLD -> "HOUSEHOLD MEMBERS"
+                                            Screen.SETTINGS -> "SETTINGS"
                                             else -> "TRANSACTIONS"
                                         },
                                         fontWeight = FontWeight.Black,
@@ -263,8 +220,10 @@ class MainActivity : ComponentActivity() {
                                     )
                                 },
                                 navigationIcon = {
-                                    if (currentScreen == Screen.HOUSEHOLD) {
-                                        IconButton(onClick = { currentScreen = Screen.BUDGET }) {
+                                    if (currentScreen == Screen.HOUSEHOLD || currentScreen == Screen.SETTINGS) {
+                                        IconButton(onClick = { 
+                                            currentScreen = if (currentScreen == Screen.HOUSEHOLD) Screen.SETTINGS else Screen.BUDGET 
+                                        }) {
                                             Icon(
                                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                                 contentDescription = "Back",
@@ -272,27 +231,38 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                     } else {
-                                        IconButton(onClick = { currentScreen = Screen.HOUSEHOLD }) {
-                                            BadgedBox(
-                                                badge = {
-                                                    if (pendingInvites.isNotEmpty()) {
-                                                        Badge(
-                                                            containerColor = MaterialTheme.colorScheme.error,
-                                                            modifier = Modifier.offset(x = (-4).dp, y = 4.dp)
-                                                        )
-                                                    }
-                                                }
-                                            ) {
-                                                Icon(
-                                                    imageVector = if (pendingInvites.isNotEmpty()) Icons.Default.Notifications else Icons.Outlined.Notifications,
-                                                    contentDescription = "Notifications",
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
+                                        IconButton(onClick = { currentScreen = Screen.SETTINGS }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Settings,
+                                                contentDescription = "Settings",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
                                         }
                                     }
                                 },
                                 actions = {
+                                    // Notifications Bell
+                                    IconButton(onClick = { currentScreen = Screen.HOUSEHOLD }) {
+                                        BadgedBox(
+                                            badge = {
+                                                if (pendingInvites.isNotEmpty()) {
+                                                    Badge(
+                                                        containerColor = MaterialTheme.colorScheme.error,
+                                                        modifier = Modifier.offset(x = (-4).dp, y = 4.dp)
+                                                    )
+                                                }
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = if (pendingInvites.isNotEmpty()) Icons.Default.Notifications else Icons.Outlined.Notifications,
+                                                contentDescription = "Notifications",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(4.dp))
+
                                     // Sync Status Indicator
                                     if (isSyncing) {
                                         Icon(
@@ -312,15 +282,6 @@ class MainActivity : ComponentActivity() {
                                     
                                     Spacer(modifier = Modifier.width(8.dp))
 
-                                    if (currentScreen != Screen.HOUSEHOLD) {
-                                        IconButton(onClick = { currentScreen = Screen.HOUSEHOLD }) {
-                                            Icon(
-                                                imageVector = Icons.Default.Groups,
-                                                contentDescription = "Household",
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
                                     IconButton(onClick = { showLogoutDialog = true }) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.Logout,
@@ -442,6 +403,15 @@ class MainActivity : ComponentActivity() {
                                     onResetData = { viewModel.resetAllHouseholdData() }
                                 )
                             }
+                            Screen.SETTINGS -> {
+                                SettingsPage(
+                                    onNavigateToHousehold = { currentScreen = Screen.HOUSEHOLD },
+                                    onStartFromScratch = { 
+                                        viewModel.resetAllHouseholdData()
+                                        currentScreen = Screen.BUDGET
+                                    }
+                                )
+                            }
                             Screen.BUDGET -> {
                                 Box(modifier = Modifier.fillMaxSize()) {
                                     LazyColumn(
@@ -451,271 +421,298 @@ class MainActivity : ComponentActivity() {
                                         verticalArrangement = Arrangement.spacedBy(20.dp),
                                         contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)
                                     ) {
-                                        item {
-                                            PaycheckSelector(
-                                                paychecks = scheduledPaychecks,
-                                                selectedPaycheck = selectedPaycheck,
-                                                linkedPaycheckDates = filteredTransactions
-                                                    .filter { it.type == TransactionType.INCOME && it.linkedPaycheckDate != null }
-                                                    .mapNotNull { it.linkedPaycheckDate }
-                                                    .toSet(),
-                                                onPaycheckSelected = { selectedPaycheck = it }
-                                            )
-                                        }
-
                                         // (1) THE TOTAL POOL CARD
                                         item {
                                             Spacer(modifier = Modifier.height(0.dp))
                                             TotalPoolCard(
                                                 total = unassignedFunds,
                                                 currentDate = currentDate,
-                                                onPreviousMonth = { currentDate = currentDate.minusMonths(1) },
-                                                onNextMonth = { currentDate = currentDate.plusMonths(1) }
+                                                onPreviousMonth = { 
+                                                    currentDate = currentDate.minusMonths(1)
+                                                    viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
+                                                },
+                                                onNextMonth = { 
+                                                    currentDate = currentDate.plusMonths(1)
+                                                    viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
+                                                },
+                                                onMonthClick = {
+                                                    currentDate = LocalDate.now()
+                                                    viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
+                                                }
                                             )
                                         }
 
-                                    // (2) MULTIPLE INCOME DETAILS CARDS
-                                    item {
-                                        Card(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                                        ) {
-                                            Column {
-                                                Text(
-                                                    text = "INCOME SOURCES",
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    style = MaterialTheme.typography.labelLarge,
-                                                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 12.dp),
-                                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                                                )
-
-                                                HorizontalDivider(
-                                                    modifier = Modifier.padding(horizontal = 0.dp),
-                                                    color = MaterialTheme.colorScheme.outline
-                                                )
-
-                                                if (streams.isEmpty()) {
-                                                    Column(
-                                                        modifier = Modifier.fillMaxWidth().padding(24.dp),
-                                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                                                    ) {
-                                                        Text(
-                                                            text = "No income sources configured yet.",
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                                        )
-
-                                                        OutlinedButton(
-                                                            onClick = {
-                                                                editingStream = null
-                                                                showIncomeSheet = true
-                                                            },
-                                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-                                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                                                        ) {
-                                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                            Spacer(modifier = Modifier.width(8.dp))
-                                                            Text("Get Started")
-                                                        }
-                                                    }
-                                                } else {
-                                                    streams.forEachIndexed { index, stream ->
-                                                        val streamTransactions = filteredTransactions
-                                                            .filter { it.type == TransactionType.INCOME && it.incomeStreamId == stream.id }
-                                                        
-                                                        val receivedAmount = streamTransactions.sumOf { it.amount }
-                                                        val lastDate = streamTransactions.maxByOrNull { it.date }?.date
-
-                                                        IncomeDetailsCard(
-                                                            stream = stream,
-                                                            receivedAmount = receivedAmount,
-                                                            lastPaymentDate = lastDate,
-                                                            onClick = {
-                                                                selectedStreamForDetail = stream
-                                                                showIncomeDetailSheet = true
-                                                            },
-                                                            onDelete = { viewModel.deleteIncomeStream(stream) }
-                                                        )
-                                                        if (index < streams.lastIndex) {
-                                                            HorizontalDivider(
-                                                                modifier = Modifier.padding(horizontal = 16.dp),
-                                                                color = MaterialTheme.colorScheme.outline
-                                                            )
-                                                        }
-                                                    }
-                                                    Box(
-                                                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp),
-                                                        contentAlignment = Alignment.Center
-                                                    ) {
-                                                        OutlinedButton(
-                                                            onClick = {
-                                                                editingStream = null
-                                                                showIncomeSheet = true
-                                                            },
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)),
-                                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                                                        ) {
-                                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                            Spacer(modifier = Modifier.width(6.dp))
-                                                            Text("Add Income Source", style = MaterialTheme.typography.labelLarge)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // (3) BUDGET CATEGORIES & ENVELOPE ITEMS
-                                    if (categoriesWithItems.isEmpty()) {
-                                        item {
-                                            Card(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                                            ) {
+                                        // THE "CREATE BUDGET" SCREEN
+                                        // Only show if the current month is empty AND the user has data in other months
+                                        // AND they haven't explicitly asked to "start fresh" for this month.
+                                        if (streams.isEmpty() && categoriesWithItems.isEmpty() && hasAnyBudgetData && forceShowBudgetForMonth != currentMonthYear) {
+                                            item {
                                                 Column(
-                                                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                                    modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
                                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                                    verticalArrangement = Arrangement.spacedBy(16.dp)
                                                 ) {
                                                     Text(
-                                                        text = "No categories created yet.",
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                                        text = "Lets create your ${currentDate.format(DateTimeFormatter.ofPattern("MMMM"))} budget.",
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
-
-                                                    OutlinedButton(
-                                                        onClick = {
-                                                            editingCategory = null
-                                                            showCategorySheet = true
+                                                    Button(
+                                                        onClick = { 
+                                                            val prevMonth = currentDate.minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                                                            viewModel.copyBudget(prevMonth, currentMonthYear)
+                                                            // If copy results in nothing (e.g. first setup), we'll force the view to change
+                                                            forceShowBudgetForMonth = currentMonthYear
                                                         },
-                                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                                        modifier = Modifier.height(56.dp),
+                                                        shape = MaterialTheme.shapes.medium
                                                     ) {
-                                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                        Spacer(modifier = Modifier.width(8.dp))
-                                                        Text("Create Category")
+                                                        Text("Create ${currentDate.format(DateTimeFormatter.ofPattern("MMMM"))} budget")
+                                                    }
+                                                    
+                                                    TextButton(onClick = { forceShowBudgetForMonth = currentMonthYear }) {
+                                                        Text("Start from scratch")
                                                     }
                                                 }
                                             }
-                                        }
-                                    } else {
-                                        items(categoriesWithItems) { categoryWithItems ->
-                                            val isExpanded = !collapsedCategories.contains(categoryWithItems.category.id)
+                                        } else {
+                                            // (2) MULTIPLE INCOME DETAILS CARDS
+                                            item {
+                                                Card(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                                                ) {
+                                                    Column {
+                                                        Text(
+                                                            text = "INCOME SOURCES",
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            style = MaterialTheme.typography.labelLarge,
+                                                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 12.dp),
+                                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                                        )
 
-                                            Card(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                                            ) {
-                                                Column(modifier = Modifier.padding(bottom = if (isExpanded) 8.dp else 0.dp)) {
-                                                    CategoryHeader(
-                                                        category = categoryWithItems.category,
-                                                        isExpanded = isExpanded,
-                                                        onToggleExpand = {
-                                                            if (isExpanded) {
-                                                                collapsedCategories.add(categoryWithItems.category.id)
-                                                            } else {
-                                                                collapsedCategories.remove(categoryWithItems.category.id)
-                                                            }
-                                                        },
-                                                        onEditCategory = {
-                                                            editingCategory = categoryWithItems.category
-                                                            showCategorySheet = true
-                                                        },
-                                                        onAddItem = {
-                                                            activeCategoryId = categoryWithItems.category.id
-                                                            editingItem = null
-                                                            showItemSheet = true
-                                                        }
-                                                    )
-
-                                                    if (isExpanded) {
                                                         HorizontalDivider(
                                                             modifier = Modifier.padding(horizontal = 0.dp),
                                                             color = MaterialTheme.colorScheme.outline
                                                         )
 
-                                                        categoryWithItems.items.forEachIndexed { index, item ->
-                                                            val spentAmount = filteredTransactions
-                                                                .filter { it.type == TransactionType.EXPENSE && it.itemId == item.id }
-                                                                .sumOf { it.amount }
-
-                                                            val totalAssignedForMonth = assignments.filter { assignment ->
-                                                                if (assignment.itemId != item.id) return@filter false
-                                                                try {
-                                                                    val assignDate = LocalDate.parse(assignment.paycheckDate)
-                                                                    assignDate.month == currentDate.month && assignDate.year == currentDate.year
-                                                                } catch (e: Exception) { false }
-                                                            }.sumOf { it.amount }
-
-                                                            EnvelopeItemRow(
-                                                                item = item,
-                                                                spentAmount = spentAmount,
-                                                                totalAssignedForMonth = totalAssignedForMonth,
-                                                                isPaycheckView = selectedPaycheck != null,
-                                                                onClick = {
-                                                                    selectedItemForDetail = item
-                                                                    showItemDetailSheet = true
-                                                                }
-                                                            )
-                                                            if (index < categoryWithItems.items.lastIndex) {
-                                                                HorizontalDivider(
-                                                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                                                    color = MaterialTheme.colorScheme.outline
+                                                        if (streams.isEmpty()) {
+                                                            Column(
+                                                                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = "No income sources configured yet.",
+                                                                    style = MaterialTheme.typography.bodyMedium,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                                                 )
+
+                                                                OutlinedButton(
+                                                                    onClick = {
+                                                                        editingStream = null
+                                                                        showIncomeSheet = true
+                                                                    },
+                                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                                                ) {
+                                                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                                    Text("Get Started")
+                                                                }
+                                                            }
+                                                        } else {
+                                                            streams.forEachIndexed { index, stream ->
+                                                                val streamTransactions = filteredTransactions
+                                                                    .filter { it.type == TransactionType.INCOME && it.incomeStreamId == stream.id }
+                                                                
+                                                                val receivedAmount = streamTransactions.sumOf { it.amount }
+
+                                                                IncomeDetailsCard(
+                                                                    stream = stream,
+                                                                    receivedAmount = receivedAmount,
+                                                                    onClick = {
+                                                                        selectedStreamForDetail = stream
+                                                                        showIncomeDetailSheet = true
+                                                                    }
+                                                                )
+                                                                if (index < streams.lastIndex) {
+                                                                    HorizontalDivider(
+                                                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                                                        color = MaterialTheme.colorScheme.outline
+                                                                    )
+                                                                }
+                                                            }
+                                                            Box(
+                                                                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp),
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                OutlinedButton(
+                                                                    onClick = {
+                                                                        editingStream = null
+                                                                        showIncomeSheet = true
+                                                                    },
+                                                                    modifier = Modifier.fillMaxWidth(),
+                                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)),
+                                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                                                                ) {
+                                                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                                    Text("Add Income Source", style = MaterialTheme.typography.labelLarge)
+                                                                }
                                                             }
                                                         }
                                                     }
                                                 }
                                             }
-                                        }
 
-                                        item {
-                                            Box(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                OutlinedButton(
-                                                    onClick = {
-                                                        editingCategory = null
-                                                        showCategorySheet = true
-                                                    },
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                                                ) {
-                                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text("Add New Category", style = MaterialTheme.typography.labelLarge)
+                                            // (3) BUDGET CATEGORIES & ENVELOPE ITEMS
+                                            if (categoriesWithItems.isEmpty()) {
+                                                item {
+                                                    Card(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                                                    ) {
+                                                        Column(
+                                                            modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = "No categories created yet.",
+                                                                style = MaterialTheme.typography.bodyMedium,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                                            )
+
+                                                            OutlinedButton(
+                                                                onClick = {
+                                                                    editingCategory = null
+                                                                    showCategorySheet = true
+                                                                },
+                                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                                            ) {
+                                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                                Spacer(modifier = Modifier.width(8.dp))
+                                                                Text("Create Category")
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                items(categoriesWithItems) { categoryWithItems ->
+                                                    val isExpanded = !collapsedCategories.contains(categoryWithItems.category.id)
+
+                                                    Card(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                                                    ) {
+                                                        Column(modifier = Modifier.padding(bottom = if (isExpanded) 8.dp else 0.dp)) {
+                                                            CategoryHeader(
+                                                                category = categoryWithItems.category,
+                                                                isExpanded = isExpanded,
+                                                                onToggleExpand = {
+                                                                    if (isExpanded) {
+                                                                        collapsedCategories.add(categoryWithItems.category.id)
+                                                                    } else {
+                                                                        collapsedCategories.remove(categoryWithItems.category.id)
+                                                                    }
+                                                                },
+                                                                onEditCategory = {
+                                                                    editingCategory = categoryWithItems.category
+                                                                    showCategorySheet = true
+                                                                },
+                                                                onAddItem = {
+                                                                    activeCategoryId = categoryWithItems.category.id
+                                                                    editingItem = null
+                                                                    showItemSheet = true
+                                                                }
+                                                            )
+
+                                                            if (isExpanded) {
+                                                                HorizontalDivider(
+                                                                    modifier = Modifier.padding(horizontal = 0.dp),
+                                                                    color = MaterialTheme.colorScheme.outline
+                                                                )
+
+                                                                categoryWithItems.items.forEachIndexed { index, item ->
+                                                                    val spentAmount = filteredTransactions
+                                                                        .filter { it.type == TransactionType.EXPENSE && it.itemId == item.id }
+                                                                        .sumOf { it.amount }
+
+                                                                    EnvelopeItemRow(
+                                                                        item = item,
+                                                                        spentAmount = spentAmount,
+                                                                        onClick = {
+                                                                            selectedItemForDetail = item
+                                                                            showItemDetailSheet = true
+                                                                        }
+                                                                    )
+                                                                    if (index < categoryWithItems.items.lastIndex) {
+                                                                        HorizontalDivider(
+                                                                            modifier = Modifier.padding(horizontal = 16.dp),
+                                                                            color = MaterialTheme.colorScheme.outline
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                item {
+                                                    Box(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        OutlinedButton(
+                                                            onClick = {
+                                                                editingCategory = null
+                                                                showCategorySheet = true
+                                                            },
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                                                        ) {
+                                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                            Spacer(modifier = Modifier.width(6.dp))
+                                                            Text("Add New Category", style = MaterialTheme.typography.labelLarge)
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
+                                        
+                                        item {
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Text(
+                                                text = "Version $versionName",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                                textAlign = TextAlign.Center,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
                                     }
-                                    
-                                    item {
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                        Text(
-                                            text = "Version $versionName",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.fillMaxWidth()
+
+                                    // Sync Status Indicator
+                                    if (isSyncing) {
+                                        LinearProgressIndicator(
+                                            modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
+                                            color = MaterialTheme.colorScheme.secondary
                                         )
                                     }
                                 }
                             }
-                        }
-                        Screen.TRANSACTIONS -> {
+                            Screen.TRANSACTIONS -> {
                                 TransactionPage(
                                     categoriesWithItems = categoriesWithItems,
                                     incomeStreams = streams,
-                                    scheduledPaychecks = scheduledPaychecks,
-                                    onConfirm = { type, amount, date, merchant, note, itemId, incomeStreamId, linkedPaycheckDate ->
+                                    onConfirm = { type, amount, date, merchant, note, itemId, incomeStreamId ->
                                         val transaction = BudgetTransaction(
                                             userId = user?.uid ?: "",
                                             householdId = "", // ViewModel will fill this
@@ -725,8 +722,7 @@ class MainActivity : ComponentActivity() {
                                             merchant = merchant,
                                             note = note,
                                             itemId = itemId,
-                                            incomeStreamId = incomeStreamId,
-                                            linkedPaycheckDate = linkedPaycheckDate
+                                            incomeStreamId = incomeStreamId
                                         )
                                         viewModel.saveTransaction(transaction)
                                         currentScreen = Screen.BUDGET
@@ -740,15 +736,13 @@ class MainActivity : ComponentActivity() {
                         IncomeEntrySheet(
                             targetStream = editingStream,
                             onDismiss = { showIncomeSheet = false },
-                            onConfirm = { sourceName, amount, frequency, selectedDate ->
+                            onConfirm = { sourceName, amount ->
                                 val streamToSave = IncomeStream(
                                     id = editingStream?.id ?: java.util.UUID.randomUUID().toString(),
                                     userId = user?.uid ?: "",
                                     householdId = "", // ViewModel will fill this
                                     sourceName = sourceName,
-                                    amount = amount,
-                                    frequency = frequency,
-                                    lastPayday = selectedDate
+                                    monthlyAmount = amount
                                 )
                                 viewModel.saveIncomeStream(streamToSave)
                                 showIncomeSheet = false
@@ -800,21 +794,11 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (showItemSheet) {
-                        val currentAssignment = if (selectedPaycheck != null && editingItem != null) {
-                            assignments.find { 
-                                it.itemId == editingItem!!.id && 
-                                it.incomeStreamId == selectedPaycheck!!.incomeStreamId && 
-                                it.paycheckDate == selectedPaycheck!!.date 
-                            }
-                        } else null
-
                         EnvelopeItemEntrySheet(
                             categoryId = activeCategoryId ?: "",
                             targetItem = editingItem,
-                            selectedPaycheckPlannedAmount = currentAssignment?.amount,
-                            isPaycheckSelected = selectedPaycheck != null,
                             onDismiss = { showItemSheet = false },
-                            onConfirm = { name, target, planned ->
+                            onConfirm = { name, target ->
                                 val itemId = editingItem?.id ?: java.util.UUID.randomUUID().toString()
                                 val itemToSave = EnvelopeItem(
                                     id = itemId,
@@ -823,23 +807,9 @@ class MainActivity : ComponentActivity() {
                                     categoryId = activeCategoryId ?: "",
                                     name = name,
                                     targetAmount = target,
-                                    allocatedAmount = 0.0 // Deprecated in favor of assignments
+                                    allocatedAmount = 0.0 // Deprecated
                                 )
                                 viewModel.saveEnvelopeItem(itemToSave)
-
-                                // Handle Assignment for selected paycheck
-                                if (selectedPaycheck != null && planned != null) {
-                                    val assignmentToSave = (currentAssignment ?: PaycheckAssignment(
-                                        userId = user?.uid ?: "",
-                                        itemId = itemId,
-                                        incomeStreamId = selectedPaycheck!!.incomeStreamId,
-                                        paycheckDate = selectedPaycheck!!.date
-                                    )).copy(amount = planned)
-                                    viewModel.savePaycheckAssignment(assignmentToSave)
-                                } else if (selectedPaycheck != null && planned == null && currentAssignment != null) {
-                                    viewModel.deletePaycheckAssignment(currentAssignment)
-                                }
-
                                 showItemSheet = false
                             },
                             onDelete = {
@@ -850,19 +820,9 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (selectedItemForDetail != null && showItemDetailSheet) {
-                        val itemTotalAssigned = assignments.filter { assignment ->
-                            if (assignment.itemId != selectedItemForDetail!!.id) return@filter false
-                            try {
-                                val assignDate = LocalDate.parse(assignment.paycheckDate)
-                                assignDate.month == currentDate.month && assignDate.year == currentDate.year
-                            } catch (e: Exception) { false }
-                        }.sumOf { it.amount }
-
                         ItemDetailSheet(
                             item = selectedItemForDetail!!,
                             transactions = filteredTransactions.filter { it.itemId == selectedItemForDetail!!.id },
-                            totalAssigned = itemTotalAssigned,
-                            isPaycheckView = selectedPaycheck != null,
                             onDismiss = { showItemDetailSheet = false },
                             onEditItem = {
                                 editingItem = selectedItemForDetail
@@ -883,9 +843,8 @@ class MainActivity : ComponentActivity() {
                             targetTransaction = editingTransaction,
                             categoriesWithItems = categoriesWithItems,
                             incomeStreams = streams,
-                            scheduledPaychecks = scheduledPaychecks,
                             onDismiss = { showTransactionEditSheet = false },
-                            onConfirm = { type, amount, date, merchant, note, itemId, incomeStreamId, linkedPaycheckDate ->
+                            onConfirm = { type, amount, date, merchant, note, itemId, incomeStreamId ->
                                 val transaction = editingTransaction!!.copy(
                                     userId = user?.uid ?: "",
                                     type = type,
@@ -894,8 +853,7 @@ class MainActivity : ComponentActivity() {
                                     merchant = merchant,
                                     note = note,
                                     itemId = itemId,
-                                    incomeStreamId = incomeStreamId,
-                                    linkedPaycheckDate = linkedPaycheckDate
+                                    incomeStreamId = incomeStreamId
                                 )
                                 viewModel.saveTransaction(transaction)
                                 showTransactionEditSheet = false

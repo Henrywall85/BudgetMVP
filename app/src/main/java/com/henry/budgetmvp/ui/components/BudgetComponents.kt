@@ -31,7 +31,6 @@ import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.IncomeStream
 import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
-import com.henry.budgetmvp.util.calculateNextPayday
 import com.henry.budgetmvp.util.formatIsoDate
 import java.time.Instant
 import java.time.LocalDate
@@ -39,88 +38,13 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
-import androidx.compose.material.icons.filled.CheckCircle
-import com.henry.budgetmvp.util.ScheduledPaycheck
-
-@Composable
-fun PaycheckSelector(
-    paychecks: List<ScheduledPaycheck>,
-    selectedPaycheck: ScheduledPaycheck?,
-    linkedPaycheckDates: Set<String> = emptySet(),
-    onPaycheckSelected: (ScheduledPaycheck?) -> Unit
-) {
-    if (paychecks.isEmpty()) return
-
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            text = "PLAN BY PAYCHECK",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-
-        androidx.compose.foundation.lazy.LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                FilterChip(
-                    selected = selectedPaycheck == null,
-                    onClick = { onPaycheckSelected(null) },
-                    label = { Text("All Income") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                )
-            }
-            items(paychecks.size) { index ->
-                val paycheck = paychecks[index]
-                val isSelected = selectedPaycheck == paycheck
-                val dateStr = formatIsoDate(paycheck.date)
-                val isReceived = linkedPaycheckDates.contains(paycheck.date)
-
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { onPaycheckSelected(paycheck) },
-                    label = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column {
-                                Text(paycheck.sourceName, style = MaterialTheme.typography.labelSmall)
-                                Text(dateStr, fontWeight = FontWeight.Bold)
-                            }
-                            if (isReceived) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = "Received",
-                                    modifier = Modifier.size(14.dp),
-                                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else Color(0xFF059669)
-                                )
-                            }
-                        }
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                )
-            }
-        }
-    }
-}
-
 @Composable
 fun TotalPoolCard(
     total: Double,
     currentDate: LocalDate,
     onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit
+    onNextMonth: () -> Unit,
+    onMonthClick: () -> Unit
 ) {
     val dateText = remember(currentDate) { 
         currentDate.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
@@ -157,7 +81,8 @@ fun TotalPoolCard(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-                    letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
+                    letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified,
+                    modifier = Modifier.clickable { onMonthClick() }
                 )
 
                 IconButton(onClick = onNextMonth) {
@@ -193,9 +118,7 @@ fun TotalPoolCard(
 fun IncomeDetailsCard(
     stream: IncomeStream,
     receivedAmount: Double,
-    lastPaymentDate: String?,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
+    onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -216,28 +139,23 @@ fun IncomeDetailsCard(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Surface(
-                    color = if (stream.frequency == "Irregular") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
+                    color = MaterialTheme.colorScheme.primaryContainer,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
                 ) {
-                    val label = if (stream.frequency == "Irregular") {
-                        if (lastPaymentDate != null) "Last: ${formatIsoDate(lastPaymentDate)}" else "Variable Income"
-                    } else {
-                        "Next: ${calculateNextPayday(stream.lastPayday, stream.frequency)}"
-                    }
                     Text(
-                        text = label,
+                        text = "Monthly Income",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        color = if (stream.frequency == "Irregular") MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
             
-            if (stream.amount > 0) {
+            if (stream.monthlyAmount > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 // Progress Section
-                val progress = (receivedAmount / stream.amount).toFloat().coerceIn(0f, 1f)
+                val progress = (receivedAmount / stream.monthlyAmount).toFloat().coerceIn(0f, 1f)
                 LinearProgressIndicator(
                     progress = { progress },
                     modifier = Modifier.fillMaxWidth().height(6.dp),
@@ -256,19 +174,7 @@ fun IncomeDetailsCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = stream.frequency,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "•",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (stream.amount > 0) "Goal: $${"%,.2f".format(stream.amount)}" else "No Monthly Goal",
+                        text = if (stream.monthlyAmount > 0) "Goal: $${"%,.2f".format(stream.monthlyAmount)}" else "No Monthly Goal",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -296,7 +202,7 @@ fun IncomeDetailSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val receivedAmount = transactions.sumOf { it.amount }
-    val remaining = stream.amount - receivedAmount
+    val remaining = stream.monthlyAmount - receivedAmount
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -334,17 +240,17 @@ fun IncomeDetailSheet(
                     modifier = Modifier.padding(16.dp).fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    if (stream.amount > 0) {
+                    if (stream.monthlyAmount > 0) {
                         Column {
                             Text("Planned", style = MaterialTheme.typography.labelSmall)
-                            Text("$${"%,.2f".format(stream.amount)}", fontWeight = FontWeight.Bold)
+                            Text("$${"%,.2f".format(stream.monthlyAmount)}", fontWeight = FontWeight.Bold)
                         }
                     }
                     Column {
-                        Text(if (stream.amount > 0) "Received" else "Total Received", style = MaterialTheme.typography.labelSmall)
+                        Text(if (stream.monthlyAmount > 0) "Received" else "Total Received", style = MaterialTheme.typography.labelSmall)
                         Text("$${"%,.2f".format(receivedAmount)}", fontWeight = FontWeight.Bold, color = Color(0xFF059669))
                     }
-                    if (stream.amount > 0) {
+                    if (stream.monthlyAmount > 0) {
                         Column {
                             Text("Pending", style = MaterialTheme.typography.labelSmall)
                             Text(
@@ -422,32 +328,19 @@ fun IncomeDetailSheet(
 fun IncomeEntrySheet(
     targetStream: IncomeStream?,
     onDismiss: () -> Unit,
-    onConfirm: (String, Double, String, String) -> Unit,
+    onConfirm: (String, Double) -> Unit,
     onDelete: () -> Unit
 ) {
     var source by remember { mutableStateOf(targetStream?.sourceName ?: "") }
-    var amount by remember { mutableStateOf(targetStream?.amount?.let { if (it == 0.0) "0" else it.toString() } ?: "") }
-    var frequency by remember { mutableStateOf(targetStream?.frequency ?: "Please Enter Frequency") }
-    var selectedDateIso by remember { mutableStateOf(targetStream?.lastPayday ?: LocalDate.now().toString()) }
-    var showDatePicker by remember { mutableStateOf(false) }
+    var amount by remember { mutableStateOf(targetStream?.monthlyAmount?.let { if (it == 0.0) "0" else it.toString() } ?: "") }
 
-    val frequencies = listOf("Weekly", "Bi-Weekly", "Monthly", "Irregular")
-    var expanded by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val commaTransformation = remember { ThousandsSeparatorTransformation() }
 
     val isFormValid by remember {
         derivedStateOf {
-            source.isNotBlank() && (amount.toDoubleOrNull() ?: -1.0) >= 0 && frequency != "Please Enter Frequency" && selectedDateIso.isNotBlank()
-        }
-    }
-
-    val displayDateStr = remember(selectedDateIso) {
-        try {
-            LocalDate.parse(selectedDateIso).format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
-        } catch (e: Exception) {
-            selectedDateIso
+            source.isNotBlank() && (amount.toDoubleOrNull() ?: -1.0) >= 0
         }
     }
 
@@ -484,7 +377,7 @@ fun IncomeEntrySheet(
                 onValueChange = { input ->
                     if (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' }) { amount = input }
                 },
-                label = { Text("Planned Amount (Set to 0 if irregular)") },
+                label = { Text("Planned Monthly Amount") },
                 placeholder = { Text("$0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
@@ -493,48 +386,10 @@ fun IncomeEntrySheet(
                 singleLine = true
             )
 
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = displayDateStr,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Last Payday Date") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    )
-                )
-                Box(modifier = Modifier.matchParentSize().clickable { focusManager.clearFocus(); showDatePicker = true })
-            }
-
-            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-                OutlinedTextField(
-                    value = frequency,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Frequency") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                    modifier = Modifier.menuAnchor().fillMaxWidth()
-                )
-                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    frequencies.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(option) },
-                            onClick = {
-                                frequency = option
-                                expanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
             Spacer(modifier = Modifier.height(8.dp))
 
             Button(
-                onClick = { onConfirm(source, amount.toDoubleOrNull() ?: 0.0, frequency, selectedDateIso) },
+                onClick = { onConfirm(source, amount.toDoubleOrNull() ?: 0.0) },
                 enabled = isFormValid,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -551,32 +406,6 @@ fun IncomeEntrySheet(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Delete Income Source")
                 }
-            }
-        }
-
-        if (showDatePicker) {
-            val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = try {
-                    LocalDate.parse(selectedDateIso).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-                } catch (e: Exception) {
-                    System.currentTimeMillis()
-                }
-            )
-            DatePickerDialog(
-                onDismissRequest = { showDatePicker = false },
-                confirmButton = {
-                    TextButton(onClick = {
-                        datePickerState.selectedDateMillis?.let {
-                            selectedDateIso = Instant.ofEpochMilli(it).atZone(ZoneId.of("UTC")).toLocalDate().toString()
-                        }
-                        showDatePicker = false
-                    }) { Text("OK") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-                }
-            ) {
-                DatePicker(state = datePickerState)
             }
         }
     }

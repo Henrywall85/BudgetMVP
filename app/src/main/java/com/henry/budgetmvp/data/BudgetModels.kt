@@ -12,10 +12,9 @@ data class IncomeStream(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val userId: String = "",
     val householdId: String = "",
+    val monthYear: String = "", // e.g. "2026-08"
     val sourceName: String = "",
-    val amount: Double = 0.0,
-    val frequency: String = "",
-    val lastPayday: String = ""
+    val monthlyAmount: Double = 0.0
 )
 
 @Entity(tableName = "budget_category_table")
@@ -23,6 +22,7 @@ data class BudgetCategory(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val userId: String = "",
     val householdId: String = "",
+    val monthYear: String = "", // e.g. "2026-08"
     val name: String = ""
 )
 
@@ -41,6 +41,7 @@ data class EnvelopeItem(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val userId: String = "",
     val householdId: String = "",
+    val monthYear: String = "", // e.g. "2026-08"
     val categoryId: String = "",
     val name: String = "",
     val targetAmount: Double = 0.0,
@@ -68,8 +69,7 @@ data class BudgetTransaction(
     val merchant: String = "",
     val note: String = "",
     val itemId: String? = null, // For Expenses
-    val incomeStreamId: String? = null, // For Income
-    val linkedPaycheckDate: String? = null // For linking income to a planned payday
+    val incomeStreamId: String? = null // For Income
 )
 
 @Entity(tableName = "user_profile_table")
@@ -92,27 +92,6 @@ data class HouseholdInvite(
 enum class TransactionType {
     INCOME, EXPENSE
 }
-
-@Entity(
-    tableName = "paycheck_assignments",
-    foreignKeys = [
-        ForeignKey(
-            entity = EnvelopeItem::class,
-            parentColumns = ["id"],
-            childColumns = ["itemId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ]
-)
-data class PaycheckAssignment(
-    @PrimaryKey val id: String = UUID.randomUUID().toString(),
-    val userId: String = "",
-    val householdId: String = "",
-    val itemId: String = "",
-    val incomeStreamId: String = "",
-    val paycheckDate: String = "", // ISO Date of the expected paycheck
-    val amount: Double = 0.0
-)
 
 data class CategoryWithItems(
     @Embedded val category: BudgetCategory = BudgetCategory(),

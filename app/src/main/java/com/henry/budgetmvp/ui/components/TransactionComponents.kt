@@ -23,7 +23,6 @@ import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.CategoryWithItems
 import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
-import com.henry.budgetmvp.util.ScheduledPaycheck
 import com.henry.budgetmvp.util.formatIsoDate
 import java.time.Instant
 import java.time.LocalDate
@@ -36,8 +35,7 @@ import java.time.format.DateTimeFormatter
 fun TransactionPage(
     categoriesWithItems: List<CategoryWithItems>,
     incomeStreams: List<com.henry.budgetmvp.data.IncomeStream>,
-    scheduledPaychecks: List<ScheduledPaycheck> = emptyList(),
-    onConfirm: (TransactionType, Double, String, String, String, String?, String?, String?) -> Unit
+    onConfirm: (TransactionType, Double, String, String, String, String?, String?) -> Unit
 ) {
     var type by remember { mutableStateOf(TransactionType.EXPENSE) }
     var amount by remember { mutableStateOf("") }
@@ -45,14 +43,12 @@ fun TransactionPage(
     var note by remember { mutableStateOf("") }
     var selectedItemId by remember { mutableStateOf<String?>(null) }
     var selectedIncomeStreamId by remember { mutableStateOf<String?>(null) }
-    var linkedPaycheckDate by remember { mutableStateOf<String?>(null) }
     var selectedDateIso by remember { mutableStateOf(LocalDate.now().toString()) }
     var showDatePicker by remember { mutableStateOf(false) }
 
     var categoryExpanded by remember { mutableStateOf(false) }
     var itemExpanded by remember { mutableStateOf(false) }
     var incomeSourceExpanded by remember { mutableStateOf(false) }
-    var paydayExpanded by remember { mutableStateOf(false) }
 
     var selectedCategory by remember { mutableStateOf<CategoryWithItems?>(null) }
 
@@ -195,45 +191,6 @@ fun TransactionPage(
                                         selectedIncomeStreamId = stream.id
                                         merchant = stream.sourceName // Set merchant to source name for display
                                         incomeSourceExpanded = false
-                                        // Auto-link if date matches? Maybe just show the dropdown
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    // Payday Linker
-                    Spacer(modifier = Modifier.height(8.dp))
-                    ExposedDropdownMenuBox(
-                        expanded = paydayExpanded,
-                        onExpandedChange = { paydayExpanded = it }
-                    ) {
-                        val displayValue = if (linkedPaycheckDate != null) {
-                            "Linked to ${formatIsoDate(linkedPaycheckDate!!)}"
-                        } else "Not linked to a payday"
-
-                        OutlinedTextField(
-                            value = displayValue,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Match to Planned Payday") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = paydayExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(
-                            expanded = paydayExpanded,
-                            onDismissRequest = { paydayExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Don't link to a payday") },
-                                onClick = { linkedPaycheckDate = null; paydayExpanded = false }
-                            )
-                            scheduledPaychecks.filter { it.incomeStreamId == selectedIncomeStreamId }.forEach { paycheck ->
-                                DropdownMenuItem(
-                                    text = { Text("${paycheck.sourceName} (${formatIsoDate(paycheck.date)})") },
-                                    onClick = {
-                                        linkedPaycheckDate = paycheck.date
-                                        paydayExpanded = false
                                     }
                                 )
                             }
@@ -329,8 +286,7 @@ fun TransactionPage(
                     merchant,
                     note,
                     selectedItemId,
-                    selectedIncomeStreamId,
-                    linkedPaycheckDate
+                    selectedIncomeStreamId
                 )
                 // Reset form
                 amount = ""
@@ -338,7 +294,6 @@ fun TransactionPage(
                 note = ""
                 selectedItemId = null
                 selectedIncomeStreamId = null
-                linkedPaycheckDate = null
                 selectedCategory = null
                 selectedDateIso = LocalDate.now().toString()
             },
@@ -384,9 +339,8 @@ fun TransactionEntrySheet(
     targetTransaction: BudgetTransaction? = null,
     categoriesWithItems: List<CategoryWithItems>,
     incomeStreams: List<com.henry.budgetmvp.data.IncomeStream>,
-    scheduledPaychecks: List<ScheduledPaycheck> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (TransactionType, Double, String, String, String, String?, String?, String?) -> Unit,
+    onConfirm: (TransactionType, Double, String, String, String, String?, String?) -> Unit,
     onDelete: (() -> Unit)? = null
 ) {
     var type by remember { mutableStateOf(targetTransaction?.type ?: TransactionType.EXPENSE) }
@@ -395,14 +349,12 @@ fun TransactionEntrySheet(
     var note by remember { mutableStateOf(targetTransaction?.note ?: "") }
     var selectedItemId by remember { mutableStateOf(targetTransaction?.itemId) }
     var selectedIncomeStreamId by remember { mutableStateOf(targetTransaction?.incomeStreamId) }
-    var linkedPaycheckDate by remember { mutableStateOf(targetTransaction?.linkedPaycheckDate) }
     var selectedDateIso by remember { mutableStateOf(targetTransaction?.date ?: LocalDate.now().toString()) }
     var showDatePicker by remember { mutableStateOf(false) }
 
     var categoryExpanded by remember { mutableStateOf(false) }
     var itemExpanded by remember { mutableStateOf(false) }
     var incomeSourceExpanded by remember { mutableStateOf(false) }
-    var paydayExpanded by remember { mutableStateOf(false) }
     
     var selectedCategory by remember { 
         mutableStateOf(
@@ -540,44 +492,6 @@ fun TransactionEntrySheet(
                         }
                     }
                 }
-
-                // Payday Linker
-                Spacer(modifier = Modifier.height(8.dp))
-                ExposedDropdownMenuBox(
-                    expanded = paydayExpanded,
-                    onExpandedChange = { paydayExpanded = it }
-                ) {
-                    val displayValue = if (linkedPaycheckDate != null) {
-                        "Linked to ${formatIsoDate(linkedPaycheckDate!!)}"
-                    } else "Not linked to a payday"
-
-                    OutlinedTextField(
-                        value = displayValue,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Match to Planned Payday") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = paydayExpanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = paydayExpanded,
-                        onDismissRequest = { paydayExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Don't link to a payday") },
-                            onClick = { linkedPaycheckDate = null; paydayExpanded = false }
-                        )
-                        scheduledPaychecks.filter { it.incomeStreamId == selectedIncomeStreamId }.forEach { paycheck ->
-                            DropdownMenuItem(
-                                text = { Text("${paycheck.sourceName} (${formatIsoDate(paycheck.date)})") },
-                                onClick = {
-                                    linkedPaycheckDate = paycheck.date
-                                    paydayExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
             }
 
             if (type == TransactionType.EXPENSE) {
@@ -668,8 +582,7 @@ fun TransactionEntrySheet(
                         merchant,
                         note,
                         selectedItemId,
-                        selectedIncomeStreamId,
-                        linkedPaycheckDate
+                        selectedIncomeStreamId
                     )
                 },
                 enabled = isFormValid,

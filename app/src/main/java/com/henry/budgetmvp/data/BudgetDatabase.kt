@@ -11,8 +11,11 @@ interface BudgetDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertUserProfile(profile: UserProfile)
 
-    @Query("SELECT * FROM multi_income_table WHERE householdId = :householdId ORDER BY id ASC")
-    fun getAllIncomeStreams(householdId: String): Flow<List<IncomeStream>>
+    @Query("SELECT * FROM multi_income_table WHERE householdId = :householdId AND monthYear = :monthYear ORDER BY id ASC")
+    fun getAllIncomeStreams(householdId: String, monthYear: String): Flow<List<IncomeStream>>
+
+    @Query("SELECT * FROM multi_income_table WHERE householdId = :householdId AND monthYear = :monthYear")
+    suspend fun getIncomeStreamsSync(householdId: String, monthYear: String): List<IncomeStream>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertIncomeStream(stream: IncomeStream)
@@ -21,8 +24,14 @@ interface BudgetDao {
     suspend fun deleteIncomeStream(stream: IncomeStream)
 
     @Transaction
-    @Query("SELECT * FROM budget_category_table WHERE householdId = :householdId ORDER BY name ASC")
-    fun getAllCategoriesWithItems(householdId: String): Flow<List<CategoryWithItems>>
+    @Query("SELECT * FROM budget_category_table WHERE householdId = :householdId AND monthYear = :monthYear ORDER BY name ASC")
+    fun getAllCategoriesWithItems(householdId: String, monthYear: String): Flow<List<CategoryWithItems>>
+
+    @Query("SELECT * FROM budget_category_table WHERE householdId = :householdId AND monthYear = :monthYear")
+    suspend fun getCategoriesSync(householdId: String, monthYear: String): List<BudgetCategory>
+
+    @Query("SELECT * FROM envelope_item_table WHERE householdId = :householdId AND monthYear = :monthYear")
+    suspend fun getEnvelopeItemsSync(householdId: String, monthYear: String): List<EnvelopeItem>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertCategory(category: BudgetCategory)
@@ -45,18 +54,6 @@ interface BudgetDao {
     @Delete
     suspend fun deleteTransaction(transaction: BudgetTransaction)
 
-    @Query("SELECT * FROM paycheck_assignments WHERE householdId = :householdId")
-    fun getAllPaycheckAssignments(householdId: String): Flow<List<PaycheckAssignment>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertPaycheckAssignment(assignment: PaycheckAssignment)
-
-    @Delete
-    suspend fun deletePaycheckAssignment(assignment: PaycheckAssignment)
-
-    @Query("DELETE FROM paycheck_assignments WHERE householdId = :householdId")
-    suspend fun deleteAssignmentsForHousehold(householdId: String)
-
     @Query("DELETE FROM multi_income_table WHERE householdId = :householdId")
     suspend fun deleteIncomeStreamsForHousehold(householdId: String)
 
@@ -69,9 +66,11 @@ interface BudgetDao {
     @Query("DELETE FROM transaction_table WHERE householdId = :householdId")
     suspend fun deleteTransactionsForHousehold(householdId: String)
 
+    @Query("SELECT EXISTS(SELECT 1 FROM multi_income_table WHERE householdId = :householdId LIMIT 1) OR EXISTS(SELECT 1 FROM budget_category_table WHERE householdId = :householdId LIMIT 1)")
+    fun hasAnyBudgetData(householdId: String): Flow<Boolean>
+
     @Transaction
     suspend fun clearHouseholdData(householdId: String) {
-        deleteAssignmentsForHousehold(householdId)
         deleteTransactionsForHousehold(householdId)
         deleteItemsForHousehold(householdId)
         deleteCategoriesForHousehold(householdId)
@@ -83,10 +82,8 @@ interface BudgetDao {
         income: List<IncomeStream>,
         categories: List<BudgetCategory>,
         items: List<EnvelopeItem>,
-        transactions: List<BudgetTransaction>,
-        assignments: List<PaycheckAssignment>
+        transactions: List<BudgetTransaction>
     ) {
-        assignments.forEach { upsertPaycheckAssignment(it) }
         income.forEach { upsertIncomeStream(it) }
         categories.forEach { upsertCategory(it) }
         items.forEach { upsertEnvelopeItem(it) }
@@ -95,8 +92,8 @@ interface BudgetDao {
 }
 
 @Database(
-    entities = [IncomeStream::class, BudgetCategory::class, EnvelopeItem::class, BudgetTransaction::class, UserProfile::class, PaycheckAssignment::class],
-    version = 17,
+    entities = [IncomeStream::class, BudgetCategory::class, EnvelopeItem::class, BudgetTransaction::class, UserProfile::class],
+    version = 19,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

@@ -263,6 +263,23 @@ class BudgetViewModel @Inject constructor(
     }.flatMapLatest { (hid, monthYear) ->
         if (hid == null || monthYear == null) flowOf(emptyList()) 
         else repository.getAllCategoriesWithItems(hid, monthYear)
+    }.map { categories ->
+        val today = LocalDate.now().dayOfMonth
+        categories.map { categoryWithItems ->
+            categoryWithItems.copy(
+                items = categoryWithItems.items.sortedWith(
+                    compareBy<EnvelopeItem> { item ->
+                        val due = item.dueDay ?: return@compareBy 999
+                        when {
+                            due < today -> 0 // Past
+                            due == today -> 1 // Today
+                            due in today + 1..today + 5 -> 2 // Soon
+                            else -> 3 // Future
+                        }
+                    }.thenBy { it.dueDay ?: 999 }
+                )
+            )
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

@@ -45,7 +45,8 @@ data class EnvelopeItem(
     val categoryId: String = "",
     val name: String = "",
     val targetAmount: Double = 0.0,
-    val allocatedAmount: Double = 0.0
+    val allocatedAmount: Double = 0.0,
+    val dueDay: Int? = null // Day of month (1-31)
 )
 
 @Entity(

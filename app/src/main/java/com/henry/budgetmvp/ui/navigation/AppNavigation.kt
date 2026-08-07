@@ -506,7 +506,7 @@ fun AppNavigation(
                 categoryId = activeCategoryId ?: "",
                 targetItem = editingItem,
                 onDismiss = { showItemSheet = false },
-                onConfirm = { name, target ->
+                onConfirm = { name, target, dueDay ->
                     val itemId = editingItem?.id ?: UUID.randomUUID().toString()
                     val itemToSave = EnvelopeItem(
                         id = itemId,
@@ -515,7 +515,8 @@ fun AppNavigation(
                         categoryId = activeCategoryId ?: "",
                         name = name,
                         targetAmount = target,
-                        allocatedAmount = 0.0
+                        allocatedAmount = 0.0,
+                        dueDay = dueDay
                     )
                     viewModel.saveEnvelopeItem(itemToSave)
                     showItemSheet = false

@@ -1,5 +1,6 @@
 package com.henry.budgetmvp.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -156,10 +157,15 @@ fun IncomeDetailsCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 // Progress Section
                 val progress = (receivedAmount / stream.monthlyAmount).toFloat().coerceIn(0f, 1f)
+                val animatedProgress by animateFloatAsState(
+                    targetValue = progress,
+                    label = "income_progress"
+                )
+                
                 LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth().height(6.dp),
-                    color = Color(0xFF059669),
+                    progress = { animatedProgress },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = Color(0xFF2E7D32), // Consistency with Success Green
                     trackColor = Color(0xFFE5E7EB),
                     strokeCap = StrokeCap.Round
                 )

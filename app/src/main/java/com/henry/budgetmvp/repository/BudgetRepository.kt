@@ -5,11 +5,13 @@ import com.henry.budgetmvp.data.*
 import com.henry.budgetmvp.util.NetworkChecker
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withTimeout
+import javax.inject.Inject
+import kotlin.time.Duration.Companion.seconds
 
-class BudgetRepository(
+class BudgetRepository @Inject constructor(
     private val context: Context,
     private val dao: BudgetDao,
-    private val firestore: FirestoreSyncManager = FirestoreSyncManager()
+    private val firestore: FirestoreSyncManager,
 ) {
     // --- User Profile ---
     suspend fun getUserProfile(userId: String): UserProfile? {
@@ -23,8 +25,7 @@ class BudgetRepository(
             try {
                 firestore.saveUserProfile(profile)
                 SyncResult.Synced
-            } catch (e: Exception) {
-                e.printStackTrace()
+            } catch (ignored: Exception) {
                 SyncResult.LocalOnly
             }
         } catch (e: Exception) {
@@ -49,13 +50,9 @@ class BudgetRepository(
         firestore.updateInviteStatus(inviteId, status)
     }
 
-    suspend fun deleteInvite(inviteId: String) {
-        firestore.deleteInvite(inviteId)
-    }
-
     // --- Sync Operations ---
     suspend fun fetchAllDataFromCloud(householdId: String, userId: String): Map<String, List<Any>> {
-        return withTimeout(5000) {
+        return withTimeout(5.seconds) {
             firestore.fetchAllData(householdId, userId)
         }
     }
@@ -74,10 +71,6 @@ class BudgetRepository(
         return dao.getAllIncomeStreams(householdId, monthYear)
     }
 
-    suspend fun getIncomeStreamsSync(householdId: String, monthYear: String): List<IncomeStream> {
-        return dao.getIncomeStreamsSync(householdId, monthYear)
-    }
-
     suspend fun saveIncomeStream(stream: IncomeStream): SyncResult {
         return try {
             dao.upsertIncomeStream(stream)
@@ -85,7 +78,7 @@ class BudgetRepository(
             try {
                 firestore.saveIncomeStream(stream)
                 SyncResult.Synced
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 SyncResult.LocalOnly
             }
         } catch (e: Exception) {
@@ -100,7 +93,7 @@ class BudgetRepository(
             try {
                 firestore.deleteIncomeStream(stream.id)
                 SyncResult.Synced
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 SyncResult.LocalOnly
             }
         } catch (e: Exception) {
@@ -113,14 +106,6 @@ class BudgetRepository(
         return dao.getAllCategoriesWithItems(householdId, monthYear)
     }
 
-    suspend fun getCategoriesSync(householdId: String, monthYear: String): List<BudgetCategory> {
-        return dao.getCategoriesSync(householdId, monthYear)
-    }
-
-    suspend fun getEnvelopeItemsSync(householdId: String, monthYear: String): List<EnvelopeItem> {
-        return dao.getEnvelopeItemsSync(householdId, monthYear)
-    }
-
     suspend fun saveCategory(category: BudgetCategory): SyncResult {
         return try {
             dao.upsertCategory(category)
@@ -128,7 +113,7 @@ class BudgetRepository(
             try {
                 firestore.saveCategory(category)
                 SyncResult.Synced
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 SyncResult.LocalOnly
             }
         } catch (e: Exception) {
@@ -143,7 +128,7 @@ class BudgetRepository(
             try {
                 firestore.deleteCategory(category.id)
                 SyncResult.Synced
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 SyncResult.LocalOnly
             }
         } catch (e: Exception) {
@@ -158,7 +143,7 @@ class BudgetRepository(
             try {
                 firestore.saveEnvelopeItem(item)
                 SyncResult.Synced
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 SyncResult.LocalOnly
             }
         } catch (e: Exception) {
@@ -173,7 +158,7 @@ class BudgetRepository(
             try {
                 firestore.deleteEnvelopeItem(item.id)
                 SyncResult.Synced
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 SyncResult.LocalOnly
             }
         } catch (e: Exception) {
@@ -193,7 +178,7 @@ class BudgetRepository(
             try {
                 firestore.saveTransaction(transaction)
                 SyncResult.Synced
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 SyncResult.LocalOnly
             }
         } catch (e: Exception) {
@@ -208,7 +193,7 @@ class BudgetRepository(
             try {
                 firestore.deleteTransaction(transaction.id)
                 SyncResult.Synced
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 SyncResult.LocalOnly
             }
         } catch (e: Exception) {
@@ -228,7 +213,7 @@ class BudgetRepository(
             try {
                 firestore.clearHouseholdData(householdId)
                 SyncResult.Synced
-            } catch (e: Exception) {
+            } catch (ignored: Exception) {
                 SyncResult.LocalOnly
             }
         } catch (e: Exception) {

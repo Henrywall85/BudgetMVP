@@ -11,7 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.henry.budgetmvp.data.BudgetTransaction
@@ -34,7 +33,7 @@ import java.util.UUID
 fun AppNavigation(
     viewModel: BudgetViewModel,
     authViewModel: AuthViewModel,
-    versionName: String
+    versionName: String,
 ) {
     val user by authViewModel.userState.collectAsState()
     val authLoading by authViewModel.loading.collectAsState()
@@ -57,7 +56,7 @@ fun AppNavigation(
     LaunchedEffect(user) {
         if (user == null) {
             currentScreen = Screen.LOGIN
-        } else if (currentScreen == Screen.LOGIN || currentScreen == Screen.SIGNUP) {
+        } else if ((currentScreen == Screen.LOGIN) || (currentScreen == Screen.SIGNUP)) {
             currentScreen = Screen.BUDGET
         }
     }
@@ -74,7 +73,9 @@ fun AppNavigation(
     }
 
     val totalReceivedIncome = remember(filteredTransactions) {
-        filteredTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+        filteredTransactions.asSequence()
+            .filter { it.type == TransactionType.INCOME }
+            .sumOf { it.amount }
     }
 
     val totalPlannedIncomeForMonth = remember(streams) {
@@ -283,18 +284,19 @@ fun AppNavigation(
                 modifier = Modifier
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 16.dp)
-            ) { data ->
-                val currentMessage = statusMessage
-                if (currentMessage != null) {
-                    BudgetNotificationBanner(
-                        statusMessage = currentMessage,
-                        onDismiss = { data.dismiss() }
-                    )
-                } else {
-                    Snackbar(snackbarData = data)
+                    .padding(top = 16.dp),
+                snackbar = { data ->
+                    val currentMessage = statusMessage
+                    if (currentMessage != null) {
+                        BudgetNotificationBanner(
+                            statusMessage = currentMessage,
+                            onDismiss = { data.dismiss() }
+                        )
+                    } else {
+                        Snackbar(snackbarData = data)
+                    }
                 }
-            }
+            )
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
@@ -318,7 +320,7 @@ fun AppNavigation(
                         versionName = versionName,
                         loading = authLoading,
                         errorMessage = authError,
-                        onSignupClick = { name, email, password ->
+                        onSignupClick = { _, email, password ->
                             authViewModel.signUp(email, password) { success ->
                                 if (success) currentScreen = Screen.BUDGET
                             }

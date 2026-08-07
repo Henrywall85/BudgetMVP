@@ -43,10 +43,8 @@ fun BudgetScreen(
     onEditCategory: (com.henry.budgetmvp.data.BudgetCategory) -> Unit,
     onAddItem: (String) -> Unit,
     onEditItem: (com.henry.budgetmvp.data.EnvelopeItem) -> Unit,
-    onToggleCategory: (String) -> Unit
+    onToggleCategory: (String) -> Unit,
 ) {
-    val currentMonthYear = currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
@@ -140,8 +138,9 @@ fun BudgetScreen(
                                 }
                             } else {
                                 streams.forEachIndexed { index, stream ->
-                                    val streamTransactions = filteredTransactions
+                                    val streamTransactions = filteredTransactions.asSequence()
                                         .filter { it.type == TransactionType.INCOME && it.incomeStreamId == stream.id }
+                                        .toList()
                                     
                                     val receivedAmount = streamTransactions.sumOf { it.amount }
 
@@ -234,7 +233,7 @@ fun BudgetScreen(
                                     )
 
                                     categoryWithItems.items.forEachIndexed { index, item ->
-                                        val spentAmount = filteredTransactions
+                                        val spentAmount = filteredTransactions.asSequence()
                                             .filter { it.type == TransactionType.EXPENSE && it.itemId == item.id }
                                             .sumOf { it.amount }
 

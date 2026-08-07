@@ -5,32 +5,37 @@ import androidx.lifecycle.viewModelScope
 import com.henry.budgetmvp.data.*
 import com.henry.budgetmvp.repository.BudgetRepository
 import com.henry.budgetmvp.util.ConnectivityObserver
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-class BudgetViewModel(
+@HiltViewModel
+class BudgetViewModel @Inject constructor(
     private val repository: BudgetRepository,
-    private val connectivityObserver: ConnectivityObserver
+    private val connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
     private val _userId = MutableStateFlow<String?>(null)
     private val _householdId = MutableStateFlow<String?>(null)
-    private val _isSyncing = MutableStateFlow(false)
+    private val _isSyncing = MutableStateFlow(value = false)
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     private val _householdMembers = MutableStateFlow<List<UserProfile>>(emptyList())
     private val _pendingInvites = MutableStateFlow<List<HouseholdInvite>>(emptyList())
     private val _statusMessage = MutableSharedFlow<StatusMessage>()
     
     private val _selectedMonthYear = MutableStateFlow(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")))
-    val selectedMonthYear: StateFlow<String> = _selectedMonthYear
+    // Expose as public val if needed for external observation, currently unused
+    // val selectedMonthYear: StateFlow<String> = _selectedMonthYear
 
-    val householdId: StateFlow<String?> = _householdId
+    // Expose as public val if needed for external observation, currently unused
+    // val householdId: StateFlow<String?> = _householdId
     val isSyncing: StateFlow<Boolean> = _isSyncing
-    val userProfile: StateFlow<UserProfile?> = _userProfile
+    // val userProfile: StateFlow<UserProfile?> = _userProfile
     val householdMembers: StateFlow<List<UserProfile>> = _householdMembers
     val pendingInvites: StateFlow<List<HouseholdInvite>> = _pendingInvites
     val statusMessage: SharedFlow<StatusMessage> = _statusMessage
@@ -72,7 +77,7 @@ class BudgetViewModel(
                 if (profile == null) {
                     profile = UserProfile(userId = userId, email = email ?: "", householdId = userId)
                     handleSyncResult(repository.upsertUserProfile(profile))
-                } else if (email != null && profile.email != email) {
+                } else if ((email != null) && (profile.email != email)) {
                     profile = profile.copy(email = email)
                     handleSyncResult(repository.upsertUserProfile(profile))
                 }
@@ -191,6 +196,7 @@ class BudgetViewModel(
             try {
                 val data = repository.fetchAllDataFromCloud(householdId, uid)
                 
+                @Suppress("UNCHECKED_CAST")
                 val incomeList = (data["income"] as? List<IncomeStream>)?.map { stream ->
                     val updated = if (stream.householdId.isEmpty()) stream.copy(householdId = householdId) else stream
                     if (stream.householdId.isEmpty()) {
@@ -199,6 +205,7 @@ class BudgetViewModel(
                     updated
                 } ?: emptyList()
                 
+                @Suppress("UNCHECKED_CAST")
                 val categoriesList = (data["categories"] as? List<BudgetCategory>)?.map { cat ->
                     val updated = if (cat.householdId.isEmpty()) cat.copy(householdId = householdId) else cat
                     if (cat.householdId.isEmpty()) {
@@ -207,6 +214,7 @@ class BudgetViewModel(
                     updated
                 } ?: emptyList()
                 
+                @Suppress("UNCHECKED_CAST")
                 val itemsList = (data["items"] as? List<EnvelopeItem>)?.map { item ->
                     val updated = if (item.householdId.isEmpty()) item.copy(householdId = householdId) else item
                     if (item.householdId.isEmpty()) {
@@ -215,6 +223,7 @@ class BudgetViewModel(
                     updated
                 } ?: emptyList()
                 
+                @Suppress("UNCHECKED_CAST")
                 val transactionsList = (data["transactions"] as? List<BudgetTransaction>)?.map { tx ->
                     val updated = if (tx.householdId.isEmpty()) tx.copy(householdId = householdId) else tx
                     if (tx.householdId.isEmpty()) {
@@ -266,26 +275,12 @@ class BudgetViewModel(
         if (hid == null) flowOf(false) else repository.hasAnyBudgetData(hid)
     }
 
-    fun joinHousehold(newHouseholdId: String) {
-        val uid = _userId.value ?: return
-        viewModelScope.launch {
-            try {
-                val profile = UserProfile(userId = uid, email = "", householdId = newHouseholdId)
-                repository.upsertUserProfile(profile)
-                _householdId.value = newHouseholdId
-                syncFromCloud(newHouseholdId)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
     fun leaveHousehold() {
         val uid = _userId.value ?: return
         viewModelScope.launch {
             try {
                 val profile = UserProfile(userId = uid, email = "", householdId = uid)
-                repository.upsertUserProfile(profile)
+                handleSyncResult(repository.upsertUserProfile(profile))
                 _householdId.value = uid
                 syncFromCloud(uid)
             } catch (e: Exception) {
@@ -298,8 +293,8 @@ class BudgetViewModel(
         val hid = _householdId.value ?: _userId.value ?: return
         val currentMonth = _selectedMonthYear.value ?: ""
         val streamWithHid = stream.copy(
-            householdId = if (stream.householdId.isEmpty()) hid else stream.householdId,
-            monthYear = if (stream.monthYear.isEmpty()) currentMonth else stream.monthYear
+            householdId = stream.householdId.ifEmpty { hid },
+            monthYear = stream.monthYear.ifEmpty { currentMonth }
         )
         viewModelScope.launch { 
             _isSyncing.value = true
@@ -330,8 +325,8 @@ class BudgetViewModel(
         val hid = _householdId.value ?: _userId.value ?: return
         val currentMonth = _selectedMonthYear.value ?: ""
         val catWithHid = category.copy(
-            householdId = if (category.householdId.isEmpty()) hid else category.householdId,
-            monthYear = if (category.monthYear.isEmpty()) currentMonth else category.monthYear
+            householdId = category.householdId.ifEmpty { hid },
+            monthYear = category.monthYear.ifEmpty { currentMonth }
         )
         viewModelScope.launch { 
             _isSyncing.value = true
@@ -362,8 +357,8 @@ class BudgetViewModel(
         val hid = _householdId.value ?: _userId.value ?: return
         val currentMonth = _selectedMonthYear.value ?: ""
         val itemWithHid = item.copy(
-            householdId = if (item.householdId.isEmpty()) hid else item.householdId,
-            monthYear = if (item.monthYear.isEmpty()) currentMonth else item.monthYear
+            householdId = item.householdId.ifEmpty { hid },
+            monthYear = item.monthYear.ifEmpty { currentMonth }
         )
         viewModelScope.launch { 
             _isSyncing.value = true
@@ -437,7 +432,7 @@ class BudgetViewModel(
     private suspend fun handleSyncResult(result: SyncResult, successMessage: String? = null) {
         when (result) {
             is SyncResult.Synced -> {
-                if (successMessage != null) _statusMessage.emit(StatusMessage(successMessage, MessageType.SUCCESS))
+                successMessage?.let { _statusMessage.emit(StatusMessage(it, MessageType.SUCCESS)) }
             }
             is SyncResult.LocalOnly -> {
                 _statusMessage.emit(StatusMessage("Saved locally (Cloud sync unavailable)", MessageType.OFFLINE))
@@ -454,7 +449,7 @@ class BudgetViewModel(
             _isSyncing.value = true
             try {
                 val result = repository.copyBudget(hid, fromMonth, toMonth)
-                handleSyncResult(result, successMessage = "Budget created for ${toMonth}")
+                handleSyncResult(result, successMessage = "Budget created for $toMonth")
             } catch (e: Exception) {
                 e.printStackTrace()
                 _statusMessage.emit(StatusMessage("Failed to create budget", MessageType.ERROR))

@@ -6,8 +6,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 
-class FirestoreSyncManager {
-    private val db = FirebaseFirestore.getInstance()
+class FirestoreSyncManager(private val db: FirebaseFirestore) {
 
     suspend fun fetchAllData(householdId: String, userId: String): Map<String, List<Any>> = coroutineScope {
         // 1. Fetch by Household ID in parallel

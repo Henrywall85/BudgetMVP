@@ -8,34 +8,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.room.Room
-import com.henry.budgetmvp.data.AppDatabase
-import com.henry.budgetmvp.repository.BudgetRepository
-import com.henry.budgetmvp.util.ConnectivityObserver
 import com.henry.budgetmvp.ui.navigation.AppNavigation
 import com.henry.budgetmvp.ui.theme.BudgetAppTheme
 import com.henry.budgetmvp.viewmodel.AuthViewModel
 import com.henry.budgetmvp.viewmodel.BudgetViewModel
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    private val db by lazy {
-        Room.databaseBuilder(applicationContext, AppDatabase::class.java, "budget_db")
-            .fallbackToDestructiveMigration()
-            .build()
-    }
 
-    private val viewModel: BudgetViewModel by viewModels {
-        object : ViewModelProvider.Factory {
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                val repository = BudgetRepository(applicationContext, db.budgetDao())
-                val connectivityObserver = ConnectivityObserver(applicationContext)
-                return BudgetViewModel(repository, connectivityObserver) as T
-            }
-        }
-    }
+    private val viewModel: BudgetViewModel by viewModels()
 
     private val authViewModel: AuthViewModel by viewModels()
 

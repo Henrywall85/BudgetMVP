@@ -19,21 +19,17 @@ class ConnectivityObserver(context: Context) {
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 super.onAvailable(network)
-                launch { send(true) }
-            }
-
-            override fun onLosing(network: Network, maxMsToLive: Int) {
-                super.onLosing(network, maxMsToLive)
+                launch { send(element = true) }
             }
 
             override fun onLost(network: Network) {
                 super.onLost(network)
-                launch { send(false) }
+                launch { send(element = false) }
             }
 
             override fun onUnavailable() {
                 super.onUnavailable()
-                launch { send(false) }
+                launch { send(element = false) }
             }
         }
 
@@ -43,7 +39,7 @@ class ConnectivityObserver(context: Context) {
         val initialNetwork = connectivityManager.activeNetwork
         val initialCapabilities = connectivityManager.getNetworkCapabilities(initialNetwork)
         val isInitialOnline = initialCapabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
-        launch { send(isInitialOnline) }
+        launch { send(element = isInitialOnline) }
 
         awaitClose {
             connectivityManager.unregisterNetworkCallback(callback)

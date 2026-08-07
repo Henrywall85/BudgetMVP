@@ -2,11 +2,15 @@ package com.henry.budgetmvp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import javax.inject.Inject
 
-class AuthViewModel : ViewModel() {
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+@HiltViewModel
+class AuthViewModel @Inject constructor(
+    private val auth: FirebaseAuth
+) : ViewModel() {
 
     private val _userState = MutableStateFlow(auth.currentUser)
     val userState: StateFlow<com.google.firebase.auth.FirebaseUser?> = _userState

@@ -3,7 +3,10 @@ package com.henry.budgetmvp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.henry.budgetmvp.data.*
+import com.henry.budgetmvp.repository.BudgetRepository
+import com.henry.budgetmvp.util.ConnectivityObserver
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -11,8 +14,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 class BudgetViewModel(
-    private val dao: BudgetDao,
-    private val firestore: FirestoreSyncManager = FirestoreSyncManager()
+    private val repository: BudgetRepository,
+    private val connectivityObserver: ConnectivityObserver
 ) : ViewModel() {
     private val _userId = MutableStateFlow<String?>(null)
     private val _householdId = MutableStateFlow<String?>(null)
@@ -20,7 +23,7 @@ class BudgetViewModel(
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     private val _householdMembers = MutableStateFlow<List<UserProfile>>(emptyList())
     private val _pendingInvites = MutableStateFlow<List<HouseholdInvite>>(emptyList())
-    private val _statusMessage = MutableSharedFlow<String>()
+    private val _statusMessage = MutableSharedFlow<StatusMessage>()
     
     private val _selectedMonthYear = MutableStateFlow(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")))
     val selectedMonthYear: StateFlow<String> = _selectedMonthYear
@@ -30,7 +33,24 @@ class BudgetViewModel(
     val userProfile: StateFlow<UserProfile?> = _userProfile
     val householdMembers: StateFlow<List<UserProfile>> = _householdMembers
     val pendingInvites: StateFlow<List<HouseholdInvite>> = _pendingInvites
-    val statusMessage: SharedFlow<String> = _statusMessage
+    val statusMessage: SharedFlow<StatusMessage> = _statusMessage
+
+    init {
+        observeNetworkChanges()
+    }
+
+    private fun observeNetworkChanges() {
+        connectivityObserver.isOnline
+            .drop(1) // Skip initial state to avoid redundant messages on boot
+            .onEach { isOnline ->
+                if (isOnline) {
+                    _statusMessage.emit(StatusMessage("Back online — syncing data with cloud...", MessageType.SUCCESS))
+                } else {
+                    _statusMessage.emit(StatusMessage("You are offline. Changes will be saved locally.", MessageType.OFFLINE))
+                }
+            }
+            .launchIn(viewModelScope)
+    }
 
     fun setUserId(id: String?, email: String? = null) {
         _userId.value = id
@@ -47,38 +67,26 @@ class BudgetViewModel(
     private fun loadUserProfile(userId: String, email: String?) {
         viewModelScope.launch {
             try {
-                // 1. Try Local Room
-                var profile = dao.getUserProfile(userId)
-                
-                // 2. Try Firestore if not local
-                if (profile == null) {
-                    profile = firestore.getUserProfile(userId)
-                }
+                var profile = repository.getUserProfile(userId)
 
-                // 3. Create new if still null (New User)
                 if (profile == null) {
                     profile = UserProfile(userId = userId, email = email ?: "", householdId = userId)
-                    firestore.saveUserProfile(profile)
+                    handleSyncResult(repository.upsertUserProfile(profile))
                 } else if (email != null && profile.email != email) {
-                    // Update email if it changed or was missing
                     profile = profile.copy(email = email)
-                    firestore.saveUserProfile(profile)
+                    handleSyncResult(repository.upsertUserProfile(profile))
                 }
 
-                // 4. Save to Local & Set State
-                dao.upsertUserProfile(profile)
                 _userProfile.value = profile
                 _householdId.value = profile.householdId
                 
-                // 5. Load Members & Invites
                 refreshHouseholdData(profile.householdId)
                 refreshPendingInvites(profile.email)
-                
-                // 6. Trigger Sync
                 syncFromCloud(profile.householdId)
             } catch (e: Exception) {
                 e.printStackTrace()
                 _householdId.value = userId
+                _statusMessage.emit(StatusMessage("Profile load error. Working offline.", MessageType.ERROR))
                 syncFromCloud(userId)
             }
         }
@@ -87,7 +95,7 @@ class BudgetViewModel(
     private fun refreshHouseholdData(householdId: String) {
         viewModelScope.launch {
             try {
-                val members = firestore.getHouseholdMembers(householdId)
+                val members = repository.getHouseholdMembers(householdId)
                 _householdMembers.value = members
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -100,19 +108,19 @@ class BudgetViewModel(
         val cleanEmail = email.lowercase().trim()
         viewModelScope.launch {
             try {
-                val invites = firestore.getPendingInvitesForEmail(cleanEmail)
+                val invites = repository.getPendingInvitesForEmail(cleanEmail)
                 _pendingInvites.value = invites
                 if (showStatus) {
                     if (invites.isEmpty()) {
-                        _statusMessage.emit("No new invites for $cleanEmail")
+                        _statusMessage.emit(StatusMessage("No new invites for $cleanEmail", MessageType.INFO))
                     } else {
-                        _statusMessage.emit("Found ${invites.size} invite(s)")
+                        _statusMessage.emit(StatusMessage("Found ${invites.size} invite(s)", MessageType.INFO))
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 if (showStatus) {
-                    _statusMessage.emit("Error checking invites: ${e.localizedMessage}")
+                    _statusMessage.emit(StatusMessage("Error checking invites: ${e.localizedMessage}", MessageType.ERROR))
                 }
             }
         }
@@ -130,7 +138,7 @@ class BudgetViewModel(
                     toEmail = toEmail.lowercase().trim(),
                     householdId = hid
                 )
-                firestore.sendInvite(invite)
+                repository.sendInvite(invite)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -146,21 +154,15 @@ class BudgetViewModel(
         val uid = _userId.value ?: return
         viewModelScope.launch {
             try {
-                // Update profile with new householdId
                 val currentProfile = _userProfile.value ?: return@launch
                 val updatedProfile = currentProfile.copy(householdId = invite.householdId)
                 
-                firestore.saveUserProfile(updatedProfile)
-                dao.upsertUserProfile(updatedProfile)
+                repository.upsertUserProfile(updatedProfile)
+                repository.updateInviteStatus(invite.id, "ACCEPTED")
                 
-                // Update invite status
-                firestore.updateInviteStatus(invite.id, "ACCEPTED")
-                
-                // Update local state
                 _householdId.value = invite.householdId
                 _userProfile.value = updatedProfile
                 
-                // Cleanup: Refresh data
                 refreshHouseholdData(invite.householdId)
                 refreshPendingInvites(updatedProfile.email)
                 syncFromCloud(invite.householdId)
@@ -173,7 +175,7 @@ class BudgetViewModel(
     fun declineInvite(invite: HouseholdInvite) {
         viewModelScope.launch {
             try {
-                firestore.updateInviteStatus(invite.id, "DECLINED")
+                repository.updateInviteStatus(invite.id, "DECLINED")
                 val email = _userProfile.value?.email ?: ""
                 refreshPendingInvites(email)
             } catch (e: Exception) {
@@ -182,18 +184,17 @@ class BudgetViewModel(
         }
     }
 
-
     private fun syncFromCloud(householdId: String) {
         val uid = _userId.value ?: return
         viewModelScope.launch {
             _isSyncing.value = true
             try {
-                val data = firestore.fetchAllData(householdId, uid)
+                val data = repository.fetchAllDataFromCloud(householdId, uid)
                 
                 val incomeList = (data["income"] as? List<IncomeStream>)?.map { stream ->
                     val updated = if (stream.householdId.isEmpty()) stream.copy(householdId = householdId) else stream
                     if (stream.householdId.isEmpty()) {
-                        try { firestore.saveIncomeStream(updated) } catch (e: Exception) {}
+                        repository.saveIncomeStream(updated)
                     }
                     updated
                 } ?: emptyList()
@@ -201,7 +202,7 @@ class BudgetViewModel(
                 val categoriesList = (data["categories"] as? List<BudgetCategory>)?.map { cat ->
                     val updated = if (cat.householdId.isEmpty()) cat.copy(householdId = householdId) else cat
                     if (cat.householdId.isEmpty()) {
-                        try { firestore.saveCategory(updated) } catch (e: Exception) {}
+                        repository.saveCategory(updated)
                     }
                     updated
                 } ?: emptyList()
@@ -209,7 +210,7 @@ class BudgetViewModel(
                 val itemsList = (data["items"] as? List<EnvelopeItem>)?.map { item ->
                     val updated = if (item.householdId.isEmpty()) item.copy(householdId = householdId) else item
                     if (item.householdId.isEmpty()) {
-                        try { firestore.saveEnvelopeItem(updated) } catch (e: Exception) {}
+                        repository.saveEnvelopeItem(updated)
                     }
                     updated
                 } ?: emptyList()
@@ -217,16 +218,18 @@ class BudgetViewModel(
                 val transactionsList = (data["transactions"] as? List<BudgetTransaction>)?.map { tx ->
                     val updated = if (tx.householdId.isEmpty()) tx.copy(householdId = householdId) else tx
                     if (tx.householdId.isEmpty()) {
-                        try { firestore.saveTransaction(updated) } catch (e: Exception) {}
+                        repository.saveTransaction(updated)
                     }
                     updated
                 } ?: emptyList()
 
-                // Perform all database updates in a single transaction
-                dao.syncAllData(incomeList, categoriesList, itemsList, transactionsList)
-
+                repository.syncAllLocalData(incomeList, categoriesList, itemsList, transactionsList)
+            } catch (e: TimeoutCancellationException) {
+                e.printStackTrace()
+                _statusMessage.emit(StatusMessage("Cloud sync timed out. Working in offline mode.", MessageType.OFFLINE))
             } catch (e: Exception) {
                 e.printStackTrace()
+                _statusMessage.emit(StatusMessage("Cloud sync failed. Working in offline mode.", MessageType.OFFLINE))
             } finally {
                 _isSyncing.value = false
             }
@@ -241,24 +244,26 @@ class BudgetViewModel(
     val incomeStreams: Flow<List<IncomeStream>> = _householdId.combine(_selectedMonthYear) { hid, monthYear ->
         hid to monthYear
     }.flatMapLatest { (hid, monthYear) ->
-        if (hid == null) flowOf(emptyList()) else dao.getAllIncomeStreams(hid, monthYear)
+        if (hid == null || monthYear == null) flowOf(emptyList()) 
+        else repository.getAllIncomeStreams(hid, monthYear)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val categoriesWithItems: Flow<List<CategoryWithItems>> = _householdId.combine(_selectedMonthYear) { hid, monthYear ->
         hid to monthYear
     }.flatMapLatest { (hid, monthYear) ->
-        if (hid == null) flowOf(emptyList()) else dao.getAllCategoriesWithItems(hid, monthYear)
+        if (hid == null || monthYear == null) flowOf(emptyList()) 
+        else repository.getAllCategoriesWithItems(hid, monthYear)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val transactions: Flow<List<BudgetTransaction>> = _householdId.flatMapLatest { hid ->
-        if (hid == null) flowOf(emptyList()) else dao.getAllTransactions(hid)
+        if (hid == null) flowOf(emptyList()) else repository.getAllTransactions(hid)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val hasAnyBudgetData: Flow<Boolean> = _householdId.flatMapLatest { hid ->
-        if (hid == null) flowOf(false) else dao.hasAnyBudgetData(hid)
+        if (hid == null) flowOf(false) else repository.hasAnyBudgetData(hid)
     }
 
     fun joinHousehold(newHouseholdId: String) {
@@ -266,8 +271,7 @@ class BudgetViewModel(
         viewModelScope.launch {
             try {
                 val profile = UserProfile(userId = uid, email = "", householdId = newHouseholdId)
-                firestore.saveUserProfile(profile)
-                dao.upsertUserProfile(profile)
+                repository.upsertUserProfile(profile)
                 _householdId.value = newHouseholdId
                 syncFromCloud(newHouseholdId)
             } catch (e: Exception) {
@@ -281,8 +285,7 @@ class BudgetViewModel(
         viewModelScope.launch {
             try {
                 val profile = UserProfile(userId = uid, email = "", householdId = uid)
-                firestore.saveUserProfile(profile)
-                dao.upsertUserProfile(profile)
+                repository.upsertUserProfile(profile)
                 _householdId.value = uid
                 syncFromCloud(uid)
             } catch (e: Exception) {
@@ -293,18 +296,17 @@ class BudgetViewModel(
 
     fun saveIncomeStream(stream: IncomeStream) {
         val hid = _householdId.value ?: _userId.value ?: return
-        val currentMonth = _selectedMonthYear.value
+        val currentMonth = _selectedMonthYear.value ?: ""
         val streamWithHid = stream.copy(
             householdId = if (stream.householdId.isEmpty()) hid else stream.householdId,
             monthYear = if (stream.monthYear.isEmpty()) currentMonth else stream.monthYear
         )
         viewModelScope.launch { 
             _isSyncing.value = true
-            dao.upsertIncomeStream(streamWithHid)
-            try { 
-                firestore.saveIncomeStream(streamWithHid) 
-            } catch (e: Exception) { 
-                e.printStackTrace() 
+            try {
+                handleSyncResult(repository.saveIncomeStream(streamWithHid))
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 _isSyncing.value = false
             }
@@ -314,11 +316,10 @@ class BudgetViewModel(
     fun deleteIncomeStream(stream: IncomeStream) {
         viewModelScope.launch { 
             _isSyncing.value = true
-            dao.deleteIncomeStream(stream)
-            try { 
-                firestore.deleteIncomeStream(stream.id) 
-            } catch (e: Exception) { 
-                e.printStackTrace() 
+            try {
+                handleSyncResult(repository.deleteIncomeStream(stream))
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 _isSyncing.value = false
             }
@@ -327,18 +328,17 @@ class BudgetViewModel(
 
     fun saveCategory(category: BudgetCategory) {
         val hid = _householdId.value ?: _userId.value ?: return
-        val currentMonth = _selectedMonthYear.value
+        val currentMonth = _selectedMonthYear.value ?: ""
         val catWithHid = category.copy(
             householdId = if (category.householdId.isEmpty()) hid else category.householdId,
             monthYear = if (category.monthYear.isEmpty()) currentMonth else category.monthYear
         )
         viewModelScope.launch { 
             _isSyncing.value = true
-            dao.upsertCategory(catWithHid)
-            try { 
-                firestore.saveCategory(catWithHid) 
-            } catch (e: Exception) { 
-                e.printStackTrace() 
+            try {
+                handleSyncResult(repository.saveCategory(catWithHid))
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 _isSyncing.value = false
             }
@@ -348,11 +348,10 @@ class BudgetViewModel(
     fun deleteCategory(category: BudgetCategory) {
         viewModelScope.launch { 
             _isSyncing.value = true
-            dao.deleteCategory(category)
-            try { 
-                firestore.deleteCategory(category.id) 
-            } catch (e: Exception) { 
-                e.printStackTrace() 
+            try {
+                handleSyncResult(repository.deleteCategory(category))
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 _isSyncing.value = false
             }
@@ -361,18 +360,17 @@ class BudgetViewModel(
 
     fun saveEnvelopeItem(item: EnvelopeItem) {
         val hid = _householdId.value ?: _userId.value ?: return
-        val currentMonth = _selectedMonthYear.value
+        val currentMonth = _selectedMonthYear.value ?: ""
         val itemWithHid = item.copy(
             householdId = if (item.householdId.isEmpty()) hid else item.householdId,
             monthYear = if (item.monthYear.isEmpty()) currentMonth else item.monthYear
         )
         viewModelScope.launch { 
             _isSyncing.value = true
-            dao.upsertEnvelopeItem(itemWithHid)
-            try { 
-                firestore.saveEnvelopeItem(itemWithHid) 
-            } catch (e: Exception) { 
-                e.printStackTrace() 
+            try {
+                handleSyncResult(repository.saveEnvelopeItem(itemWithHid))
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 _isSyncing.value = false
             }
@@ -382,11 +380,10 @@ class BudgetViewModel(
     fun deleteEnvelopeItem(item: EnvelopeItem) {
         viewModelScope.launch { 
             _isSyncing.value = true
-            dao.deleteEnvelopeItem(item)
-            try { 
-                firestore.deleteEnvelopeItem(item.id) 
-            } catch (e: Exception) { 
-                e.printStackTrace() 
+            try {
+                handleSyncResult(repository.deleteEnvelopeItem(item))
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 _isSyncing.value = false
             }
@@ -398,11 +395,10 @@ class BudgetViewModel(
         val transWithHid = if (transaction.householdId.isEmpty()) transaction.copy(householdId = hid) else transaction
         viewModelScope.launch { 
             _isSyncing.value = true
-            dao.upsertTransaction(transWithHid)
-            try { 
-                firestore.saveTransaction(transWithHid) 
-            } catch (e: Exception) { 
-                e.printStackTrace() 
+            try {
+                handleSyncResult(repository.saveTransaction(transWithHid))
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 _isSyncing.value = false
             }
@@ -412,11 +408,10 @@ class BudgetViewModel(
     fun deleteTransaction(transaction: BudgetTransaction) {
         viewModelScope.launch { 
             _isSyncing.value = true
-            dao.deleteTransaction(transaction)
-            try { 
-                firestore.deleteTransaction(transaction.id) 
-            } catch (e: Exception) { 
-                e.printStackTrace() 
+            try {
+                handleSyncResult(repository.deleteTransaction(transaction))
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 _isSyncing.value = false
             }
@@ -428,56 +423,41 @@ class BudgetViewModel(
         viewModelScope.launch {
             _isSyncing.value = true
             try {
-                firestore.clearHouseholdData(hid)
-                dao.clearHouseholdData(hid)
-                _statusMessage.emit("Budget data reset successfully")
+                val result = repository.clearHouseholdData(hid)
+                handleSyncResult(result, successMessage = "Budget data reset successfully")
             } catch (e: Exception) {
                 e.printStackTrace()
-                _statusMessage.emit("Failed to reset data: ${e.message}")
+                _statusMessage.emit(StatusMessage("Failed to reset data: ${e.message}", MessageType.ERROR))
             } finally {
                 _isSyncing.value = false
             }
         }
     }
 
+    private suspend fun handleSyncResult(result: SyncResult, successMessage: String? = null) {
+        when (result) {
+            is SyncResult.Synced -> {
+                if (successMessage != null) _statusMessage.emit(StatusMessage(successMessage, MessageType.SUCCESS))
+            }
+            is SyncResult.LocalOnly -> {
+                _statusMessage.emit(StatusMessage("Saved locally (Cloud sync unavailable)", MessageType.OFFLINE))
+            }
+            is SyncResult.Error -> {
+                _statusMessage.emit(StatusMessage("Error: ${result.message}", MessageType.ERROR))
+            }
+        }
+    }
+
     fun copyBudget(fromMonth: String, toMonth: String) {
         val hid = _householdId.value ?: return
-        val uid = _userId.value ?: ""
         viewModelScope.launch {
             _isSyncing.value = true
             try {
-                val income = dao.getIncomeStreamsSync(hid, fromMonth)
-                val categories = dao.getCategoriesSync(hid, fromMonth)
-                val items = dao.getEnvelopeItemsSync(hid, fromMonth)
-
-                // Copy Income
-                income.forEach { stream ->
-                    val newStream = stream.copy(id = java.util.UUID.randomUUID().toString(), monthYear = toMonth)
-                    dao.upsertIncomeStream(newStream)
-                    firestore.saveIncomeStream(newStream)
-                }
-
-                // Copy Categories and their Items
-                categories.forEach { category ->
-                    val newCategoryId = java.util.UUID.randomUUID().toString()
-                    val newCategory = category.copy(id = newCategoryId, monthYear = toMonth)
-                    dao.upsertCategory(newCategory)
-                    firestore.saveCategory(newCategory)
-
-                    items.filter { it.categoryId == category.id }.forEach { item ->
-                        val newItem = item.copy(
-                            id = java.util.UUID.randomUUID().toString(),
-                            categoryId = newCategoryId,
-                            monthYear = toMonth
-                        )
-                        dao.upsertEnvelopeItem(newItem)
-                        firestore.saveEnvelopeItem(newItem)
-                    }
-                }
-                _statusMessage.emit("Budget created for ${toMonth}")
+                val result = repository.copyBudget(hid, fromMonth, toMonth)
+                handleSyncResult(result, successMessage = "Budget created for ${toMonth}")
             } catch (e: Exception) {
                 e.printStackTrace()
-                _statusMessage.emit("Failed to create budget")
+                _statusMessage.emit(StatusMessage("Failed to create budget", MessageType.ERROR))
             } finally {
                 _isSyncing.value = false
             }

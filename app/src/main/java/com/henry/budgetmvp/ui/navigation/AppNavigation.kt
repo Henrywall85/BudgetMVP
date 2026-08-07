@@ -21,6 +21,8 @@ import com.henry.budgetmvp.data.EnvelopeItem
 import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.ui.screens.*
 import com.henry.budgetmvp.ui.components.*
+import com.henry.budgetmvp.data.StatusMessage
+import com.henry.budgetmvp.data.MessageType
 import com.henry.budgetmvp.viewmodel.AuthViewModel
 import com.henry.budgetmvp.viewmodel.BudgetViewModel
 import java.time.LocalDate
@@ -109,6 +111,20 @@ fun AppNavigation(
     var showLogoutDialog by remember { mutableStateOf(false) }
     var forceShowBudgetForMonth by remember { mutableStateOf<String?>(null) }
     val collapsedCategories = remember { mutableStateListOf<String>() }
+
+    // --- SNACKBAR / BANNER STATE ---
+    val snackbarHostState = remember { SnackbarHostState() }
+    val statusMessage by viewModel.statusMessage.collectAsState(initial = null)
+
+    LaunchedEffect(statusMessage) {
+        statusMessage?.let { msg ->
+            snackbarHostState.showSnackbar(
+                message = msg.message,
+                duration = SnackbarDuration.Short,
+                withDismissAction = true
+            )
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -258,6 +274,25 @@ fun AppNavigation(
                             )
                         }
                     }
+                }
+            }
+        },
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 16.dp)
+            ) { data ->
+                val currentMessage = statusMessage
+                if (currentMessage != null) {
+                    BudgetNotificationBanner(
+                        statusMessage = currentMessage,
+                        onDismiss = { data.dismiss() }
+                    )
+                } else {
+                    Snackbar(snackbarData = data)
                 }
             }
         },

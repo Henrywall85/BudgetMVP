@@ -1,4 +1,4 @@
-package com.henry.budgetmvp.ui.components
+package com.henry.budgetmvp.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
@@ -15,7 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun SettingsPage(
+fun SettingsScreen(
     onNavigateToHousehold: () -> Unit,
     onStartFromScratch: () -> Unit
 ) {

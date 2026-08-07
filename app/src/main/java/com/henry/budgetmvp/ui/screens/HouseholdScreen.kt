@@ -1,4 +1,4 @@
-package com.henry.budgetmvp.ui.components
+package com.henry.budgetmvp.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -21,7 +21,7 @@ import com.henry.budgetmvp.data.UserProfile
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HouseholdPage(
+fun HouseholdScreen(
     currentUserId: String,
     members: List<UserProfile>,
     pendingInvites: List<HouseholdInvite>,

@@ -7,9 +7,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -102,7 +105,35 @@ fun AppNavigation(
     val hasAnyBudgetData by viewModel.hasAnyBudgetData.collectAsState(initial = false)
     val isSyncing by viewModel.isSyncing.collectAsState()
 
+    val pagerState = rememberPagerState(initialPage = 0) { 3 }
+    val coroutineScope = rememberCoroutineScope()
+
     var currentScreen by remember { mutableStateOf(if (user != null) Screen.BUDGET else Screen.LOGIN) }
+    
+    // Sync currentScreen with pager state for TopAppBar title and Overlay logic
+    LaunchedEffect(pagerState.currentPage, user) {
+        if (user != null) {
+            when (pagerState.currentPage) {
+                0 -> currentScreen = Screen.BUDGET
+                1 -> currentScreen = Screen.CALENDAR
+                2 -> currentScreen = Screen.TRANSACTIONS
+            }
+        }
+    }
+
+    // Sync pager state with currentScreen (when navigated via non-pager logic, e.g. after login)
+    LaunchedEffect(currentScreen) {
+        val targetPage = when (currentScreen) {
+            Screen.BUDGET -> 0
+            Screen.CALENDAR -> 1
+            Screen.TRANSACTIONS -> 2
+            else -> null
+        }
+        if (targetPage != null && targetPage != pagerState.currentPage) {
+            pagerState.scrollToPage(targetPage)
+        }
+    }
+
     var currentDate by remember { mutableStateOf(LocalDate.now()) }
     val currentMonthYear = remember(currentDate) { 
         currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")) 
@@ -298,24 +329,24 @@ fun AppNavigation(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             NavigationTabItem(
-                                selected = currentScreen == Screen.BUDGET,
+                                selected = pagerState.currentPage == 0,
                                 icon = Lucide.Wallet,
                                 label = "Budget",
-                                onClick = { currentScreen = Screen.BUDGET }
+                                onClick = { coroutineScope.launch { pagerState.animateScrollToPage(0) } }
                             )
 
                             NavigationTabItem(
-                                selected = currentScreen == Screen.CALENDAR,
+                                selected = pagerState.currentPage == 1,
                                 icon = Lucide.Calendar,
                                 label = "Calendar",
-                                onClick = { currentScreen = Screen.CALENDAR }
+                                onClick = { coroutineScope.launch { pagerState.animateScrollToPage(1) } }
                             )
 
                             NavigationTabItem(
-                                selected = currentScreen == Screen.TRANSACTIONS,
+                                selected = pagerState.currentPage == 2,
                                 icon = Lucide.ReceiptText,
                                 label = "Transactions",
-                                onClick = { currentScreen = Screen.TRANSACTIONS }
+                                onClick = { coroutineScope.launch { pagerState.animateScrollToPage(2) } }
                             )
                         }
                 }
@@ -394,108 +425,118 @@ fun AppNavigation(
                         }
                     )
                 }
-                Screen.CALENDAR -> {
-                    CalendarScreen(
-                        categoriesWithItems = categoriesWithItems,
-                        filteredTransactions = filteredTransactions,
-                        currentDate = currentDate,
-                        onPreviousMonth = { 
-                            currentDate = currentDate.minusMonths(1)
-                            viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
-                        },
-                        onNextMonth = { 
-                            currentDate = currentDate.plusMonths(1)
-                            viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
-                        },
-                        onEditItem = { item ->
-                            selectedItemForDetail = item
-                            showItemDetailSheet = true
-                        }
-                    )
-                }
-                Screen.BUDGET -> {
-                    BudgetScreen(
-                        unassignedFunds = unassignedFunds,
-                        currentDate = currentDate,
-                        streams = streams,
-                        categoriesWithItems = categoriesWithItems,
-                        filteredTransactions = filteredTransactions,
-                        hasAnyBudgetData = hasAnyBudgetData,
-                        isSyncing = isSyncing,
-                        versionName = versionName,
-                        collapsedCategories = collapsedCategories,
-                        onPreviousMonth = { 
-                            currentDate = currentDate.minusMonths(1)
-                            viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
-                        },
-                        onNextMonth = { 
-                            currentDate = currentDate.plusMonths(1)
-                            viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
-                        },
-                        onMonthClick = {
-                            currentDate = LocalDate.now()
-                            viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
-                        },
-                        onCreateBudget = {
-                            val prevMonth = currentDate.minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
-                            viewModel.copyBudget(prevMonth, currentMonthYear)
-                            forceShowBudgetForMonth = currentMonthYear
-                        },
-                        onStartFromScratch = { forceShowBudgetForMonth = currentMonthYear },
-                        onAddIncome = {
-                            editingStream = null
-                            showIncomeSheet = true
-                        },
-                        onEditIncome = { stream ->
-                            selectedStreamForDetail = stream
-                            showIncomeDetailSheet = true
-                        },
-                        onAddCategory = {
-                            editingCategory = null
-                            showCategorySheet = true
-                        },
-                        onEditCategory = { category ->
-                            editingCategory = category
-                            showCategorySheet = true
-                        },
-                        onAddItem = { categoryId ->
-                            activeCategoryId = categoryId
-                            editingItem = null
-                            showItemSheet = true
-                        },
-                        onEditItem = { item ->
-                            selectedItemForDetail = item
-                            showItemDetailSheet = true
-                        },
-                        onToggleCategory = { categoryId ->
-                            if (collapsedCategories.contains(categoryId)) {
-                                collapsedCategories.remove(categoryId)
-                            } else {
-                                collapsedCategories.add(categoryId)
+                Screen.BUDGET, Screen.CALENDAR, Screen.TRANSACTIONS -> {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        beyondViewportPageCount = 1
+                    ) { page ->
+                        when (page) {
+                            0 -> {
+                                BudgetScreen(
+                                    unassignedFunds = unassignedFunds,
+                                    currentDate = currentDate,
+                                    streams = streams,
+                                    categoriesWithItems = categoriesWithItems,
+                                    filteredTransactions = filteredTransactions,
+                                    hasAnyBudgetData = hasAnyBudgetData,
+                                    isSyncing = isSyncing,
+                                    versionName = versionName,
+                                    collapsedCategories = collapsedCategories,
+                                    onPreviousMonth = { 
+                                        currentDate = currentDate.minusMonths(1)
+                                        viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
+                                    },
+                                    onNextMonth = { 
+                                        currentDate = currentDate.plusMonths(1)
+                                        viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
+                                    },
+                                    onMonthClick = {
+                                        currentDate = LocalDate.now()
+                                        viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
+                                    },
+                                    onCreateBudget = {
+                                        val prevMonth = currentDate.minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                                        viewModel.copyBudget(prevMonth, currentMonthYear)
+                                        forceShowBudgetForMonth = currentMonthYear
+                                    },
+                                    onStartFromScratch = { forceShowBudgetForMonth = currentMonthYear },
+                                    onAddIncome = {
+                                        editingStream = null
+                                        showIncomeSheet = true
+                                    },
+                                    onEditIncome = { stream ->
+                                        selectedStreamForDetail = stream
+                                        showIncomeDetailSheet = true
+                                    },
+                                    onAddCategory = {
+                                        editingCategory = null
+                                        showCategorySheet = true
+                                    },
+                                    onEditCategory = { category ->
+                                        editingCategory = category
+                                        showCategorySheet = true
+                                    },
+                                    onAddItem = { categoryId ->
+                                        activeCategoryId = categoryId
+                                        editingItem = null
+                                        showItemSheet = true
+                                    },
+                                    onEditItem = { item ->
+                                        selectedItemForDetail = item
+                                        showItemDetailSheet = true
+                                    },
+                                    onToggleCategory = { categoryId ->
+                                        if (collapsedCategories.contains(categoryId)) {
+                                            collapsedCategories.remove(categoryId)
+                                        } else {
+                                            collapsedCategories.add(categoryId)
+                                        }
+                                    }
+                                )
+                            }
+                            1 -> {
+                                CalendarScreen(
+                                    categoriesWithItems = categoriesWithItems,
+                                    filteredTransactions = filteredTransactions,
+                                    currentDate = currentDate,
+                                    onPreviousMonth = { 
+                                        currentDate = currentDate.minusMonths(1)
+                                        viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
+                                    },
+                                    onNextMonth = { 
+                                        currentDate = currentDate.plusMonths(1)
+                                        viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
+                                    },
+                                    onEditItem = { item ->
+                                        selectedItemForDetail = item
+                                        showItemDetailSheet = true
+                                    }
+                                )
+                            }
+                            2 -> {
+                                TransactionsScreen(
+                                    categoriesWithItems = categoriesWithItems,
+                                    incomeStreams = streams,
+                                    onSaveTransaction = { type, amount, date, merchant, note, itemId, incomeStreamId ->
+                                        val transaction = BudgetTransaction(
+                                            userId = user?.uid ?: "",
+                                            householdId = "",
+                                            type = type,
+                                            amount = amount,
+                                            date = date,
+                                            merchant = merchant,
+                                            note = note,
+                                            itemId = itemId,
+                                            incomeStreamId = incomeStreamId
+                                        )
+                                        viewModel.saveTransaction(transaction)
+                                        // No need to switch screen manually, Pager handles it or user stays here
+                                    }
+                                )
                             }
                         }
-                    )
-                }
-                Screen.TRANSACTIONS -> {
-                    TransactionsScreen(
-                        categoriesWithItems = categoriesWithItems,
-                        incomeStreams = streams,
-                        onSaveTransaction = { type, amount, date, merchant, note, itemId, incomeStreamId ->
-                            val transaction = BudgetTransaction(
-                                userId = user?.uid ?: "",
-                                householdId = "",
-                                type = type,
-                                amount = amount,
-                                date = date,
-                                merchant = merchant,
-                                note = note,
-                                itemId = itemId,
-                                incomeStreamId = incomeStreamId
-                            )
-                            viewModel.saveTransaction(transaction)
-                            currentScreen = Screen.BUDGET
-                        }
-                    )
+                    }
                 }
             }
         }

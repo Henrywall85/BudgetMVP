@@ -47,6 +47,18 @@ fun CalendarScreen(
     val allItemsWithDueDates = remember(categoriesWithItems) {
         categoriesWithItems.flatMap { it.items }.filter { it.dueDay != null }
     }
+
+    // O(1) instant lookup maps
+    val spentByItemId = remember(filteredTransactions) {
+        filteredTransactions.asSequence()
+            .filter { it.type == TransactionType.EXPENSE && it.itemId != null }
+            .groupBy { it.itemId!! }
+            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+    }
+
+    val itemsByDueDay = remember(allItemsWithDueDates) {
+        allItemsWithDueDates.groupBy { it.dueDay }
+    }
     
     val today = LocalDate.now()
     val isCurrentMonth = today.year == currentDate.year && today.month == currentDate.month
@@ -54,7 +66,7 @@ fun CalendarScreen(
     // --- Calculations ---
     val totalBillsAmount = allItemsWithDueDates.sumOf { it.targetAmount }
     val totalPaidAmount = allItemsWithDueDates.sumOf { item ->
-        val spent = filteredTransactions.filter { it.type == TransactionType.EXPENSE && it.itemId == item.id }.sumOf { it.amount }
+        val spent = spentByItemId[item.id] ?: 0.0
         spent.coerceAtMost(item.targetAmount)
     }
 
@@ -162,9 +174,9 @@ fun CalendarScreen(
                                         )
                                         
                                         // Status dots
-                                        val itemsOnDay = allItemsWithDueDates.filter { it.dueDay == day }
+                                        val itemsOnDay = itemsByDueDay[day] ?: emptyList()
                                         if (itemsOnDay.isNotEmpty()) {
-                                            val statusColor = getCombinedStatusColor(itemsOnDay, filteredTransactions, today, currentDate)
+                                            val statusColor = getCombinedStatusColor(itemsOnDay, spentByItemId, today, currentDate)
                                             Box(
                                                 modifier = Modifier
                                                     .size(4.dp)
@@ -184,9 +196,9 @@ fun CalendarScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // 4. Timeline
-        val filteredTimelineItems = remember(allItemsWithDueDates, selectedDay) {
+        val filteredTimelineItems = remember(allItemsWithDueDates, itemsByDueDay, selectedDay) {
             if (selectedDay == null) allItemsWithDueDates.sortedBy { it.dueDay }
-            else allItemsWithDueDates.filter { it.dueDay == selectedDay }
+            else itemsByDueDay[selectedDay] ?: emptyList()
         }
 
         LazyColumn(
@@ -206,7 +218,7 @@ fun CalendarScreen(
                 }
             } else {
                 items(filteredTimelineItems) { item ->
-                    val spent = filteredTransactions.filter { it.type == TransactionType.EXPENSE && it.itemId == item.id }.sumOf { it.amount }
+                    val spent = spentByItemId[item.id] ?: 0.0
                     val isFunded = spent >= item.targetAmount - 0.001
                     
                     val urgencyColor = getItemStatusColor(item, spent, today, currentDate)
@@ -255,8 +267,8 @@ fun CalendarScreen(
     }
 }
 
-private fun getCombinedStatusColor(items: List<EnvelopeItem>, transactions: List<BudgetTransaction>, today: LocalDate, currentDate: LocalDate): Color {
-    val statuses = items.map { getItemStatusColor(it, transactions.filter { tx -> tx.itemId == it.id }.sumOf { tx -> tx.amount }, today, currentDate) }
+private fun getCombinedStatusColor(items: List<EnvelopeItem>, spentMap: Map<String, Double>, today: LocalDate, currentDate: LocalDate): Color {
+    val statuses = items.map { getItemStatusColor(it, spentMap[it.id] ?: 0.0, today, currentDate) }
     return when {
         statuses.contains(Color(0xFFC62828)) -> Color(0xFFC62828) // Red if any are red
         statuses.contains(Color(0xFFEF6C00)) -> Color(0xFFEF6C00) // Orange if any are orange

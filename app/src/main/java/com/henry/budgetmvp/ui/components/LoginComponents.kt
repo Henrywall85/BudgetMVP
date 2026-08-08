@@ -146,13 +146,15 @@ fun SignupPage(
     onSignupClick: (String, String, String) -> Unit,
     onNavigateToLogin: () -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
     val isPasswordsMatch = password == confirmPassword && password.isNotEmpty()
+    val isNameValid = firstName.isNotBlank() && lastName.isNotBlank()
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -186,18 +188,35 @@ fun SignupPage(
                 )
             }
 
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Full Name") },
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Text,
-                    capitalization = KeyboardCapitalization.Words
-                ),
-                singleLine = true,
-                enabled = !loading
-            )
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = firstName,
+                    onValueChange = { firstName = it },
+                    label = { Text("First Name") },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        capitalization = KeyboardCapitalization.Words
+                    ),
+                    singleLine = true,
+                    enabled = !loading
+                )
+                OutlinedTextField(
+                    value = lastName,
+                    onValueChange = { lastName = it },
+                    label = { Text("Last Name") },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        capitalization = KeyboardCapitalization.Words
+                    ),
+                    singleLine = true,
+                    enabled = !loading
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -250,12 +269,12 @@ fun SignupPage(
             Spacer(modifier = Modifier.height(32.dp))
 
             Button(
-                onClick = { onSignupClick(name, email, password) },
+                onClick = { onSignupClick("$firstName $lastName".trim(), email, password) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                enabled = !loading && email.isNotBlank() && password.isNotBlank() && isPasswordsMatch
+                enabled = !loading && email.isNotBlank() && password.isNotBlank() && isPasswordsMatch && isNameValid
             ) {
                 if (loading) {
                     CircularProgressIndicator(

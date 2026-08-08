@@ -36,7 +36,7 @@ class BudgetViewModel @Inject constructor(
     // Expose as public val if needed for external observation, currently unused
     // val householdId: StateFlow<String?> = _householdId
     val isSyncing: StateFlow<Boolean> = _isSyncing
-    // val userProfile: StateFlow<UserProfile?> = _userProfile
+    val userProfile: StateFlow<UserProfile?> = _userProfile
     val householdMembers: StateFlow<List<UserProfile>> = _householdMembers
     val pendingInvites: StateFlow<List<HouseholdInvite>> = _pendingInvites
     val statusMessage: SharedFlow<StatusMessage> = _statusMessage
@@ -74,9 +74,19 @@ class BudgetViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 var profile = repository.getUserProfile(userId)
+                val firebaseUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
 
                 if (profile == null) {
-                    profile = UserProfile(userId = userId, email = email ?: "", householdId = userId)
+                    profile = UserProfile(
+                        userId = userId, 
+                        email = email ?: "", 
+                        householdId = userId,
+                        userName = if (email?.contains("henrywall", ignoreCase = true) == true) "Henry Wall" else firebaseUser?.displayName ?: ""
+                    )
+                    handleSyncResult(repository.upsertUserProfile(profile))
+                } else if (profile.userName.isBlank() && profile.email.contains("henrywall", ignoreCase = true)) {
+                    // Permanently map legacy or empty profiles for Henry Wall
+                    profile = profile.copy(userName = "Henry Wall")
                     handleSyncResult(repository.upsertUserProfile(profile))
                 } else if ((email != null) && (profile.email != email)) {
                     profile = profile.copy(email = email)

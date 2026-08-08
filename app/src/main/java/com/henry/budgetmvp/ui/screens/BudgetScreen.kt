@@ -59,7 +59,7 @@ fun BudgetScreen(
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 110.dp)
+            contentPadding = PaddingValues(top = 8.dp, bottom = 170.dp)
         ) {
             // (1) THE TOTAL POOL CARD
             item {

@@ -204,7 +204,7 @@ fun CalendarScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 110.dp)
+            contentPadding = PaddingValues(top = 8.dp, bottom = 170.dp)
         ) {
             if (filteredTimelineItems.isEmpty()) {
                 item {

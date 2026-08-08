@@ -21,18 +21,25 @@ class AuthViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
-    fun signUp(email: String, password: String, onResult: (Boolean) -> Unit) {
+    fun signUp(fullName: String, email: String, password: String, onResult: (Boolean) -> Unit) {
         _loading.value = true
         _error.value = null
         auth.createUserWithEmailAndPassword(email, password)
             .addOnCompleteListener { task ->
-                _loading.value = false
                 if (task.isSuccessful) {
                     val user = auth.currentUser
-                    user?.sendEmailVerification()
-                    _userState.value = user
-                    onResult(true)
+                    val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                        .setDisplayName(fullName)
+                        .build()
+                    
+                    user?.updateProfile(profileUpdates)?.addOnCompleteListener {
+                        _loading.value = false
+                        user.sendEmailVerification()
+                        _userState.value = auth.currentUser
+                        onResult(true)
+                    }
                 } else {
+                    _loading.value = false
                     _error.value = task.exception?.message ?: "Signup failed"
                     onResult(false)
                 }

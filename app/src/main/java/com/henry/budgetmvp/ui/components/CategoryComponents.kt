@@ -82,14 +82,11 @@ fun CategoryHeader(
 fun EnvelopeItemRow(
     item: EnvelopeItem, 
     spentAmount: Double, 
+    todayDay: Int,
     onClick: () -> Unit
 ) {
     val goalAmount = item.targetAmount
     val spentRatio = if (goalAmount > 0) (spentAmount / goalAmount).toFloat() else 0f
-    val animatedProgress by animateFloatAsState(
-        targetValue = spentRatio.coerceIn(0f, 1f),
-        label = "spending_progress"
-    )
     
     val isOverBudget = spentAmount > goalAmount + 0.001
     val percentSpent = (spentRatio * 100).toInt()
@@ -101,10 +98,9 @@ fun EnvelopeItemRow(
     }
 
     // Due Date Logic
-    val today = java.time.LocalDate.now().dayOfMonth
-    val dueStatus = remember(item.dueDay, today, spentAmount, goalAmount) {
+    val dueStatus = remember(item.dueDay, todayDay, spentAmount, goalAmount) {
         val dueDay = item.dueDay ?: return@remember null
-        val daysUntil = dueDay - today
+        val daysUntil = dueDay - todayDay
         
         when {
             daysUntil < 0 && spentAmount < goalAmount -> "Overdue"
@@ -193,7 +189,7 @@ fun EnvelopeItemRow(
             Spacer(modifier = Modifier.height(10.dp))
             
             LinearProgressIndicator(
-                progress = { animatedProgress },
+                progress = { spentRatio.coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth().height(10.dp),
                 color = progressColor,
                 trackColor = Color(0xFFE5E7EB),

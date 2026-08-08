@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +45,14 @@ fun BudgetScreen(
     onEditItem: (com.henry.budgetmvp.data.EnvelopeItem) -> Unit,
     onToggleCategory: (String) -> Unit,
 ) {
+    val spentByItemId = remember(filteredTransactions) {
+        filteredTransactions.asSequence()
+            .filter { it.type == TransactionType.EXPENSE && it.itemId != null }
+            .groupBy { it.itemId!! }
+            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+    }
+    val todayDay = remember { LocalDate.now().dayOfMonth }
+
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
@@ -207,7 +216,7 @@ fun BudgetScreen(
                         }
                     }
                 } else {
-                    items(categoriesWithItems) { categoryWithItems ->
+                    items(categoriesWithItems, key = { it.category.id }) { categoryWithItems ->
                         val isExpanded = !collapsedCategories.contains(categoryWithItems.category.id)
 
                         Card(
@@ -232,13 +241,12 @@ fun BudgetScreen(
                                     )
 
                                     categoryWithItems.items.forEachIndexed { index, item ->
-                                        val spentAmount = filteredTransactions.asSequence()
-                                            .filter { it.type == TransactionType.EXPENSE && it.itemId == item.id }
-                                            .sumOf { it.amount }
+                                        val spentAmount = spentByItemId[item.id] ?: 0.0
 
                                         EnvelopeItemRow(
                                             item = item,
                                             spentAmount = spentAmount,
+                                            todayDay = todayDay,
                                             onClick = { onEditItem(item) }
                                         )
                                         if (index < categoryWithItems.items.lastIndex) {

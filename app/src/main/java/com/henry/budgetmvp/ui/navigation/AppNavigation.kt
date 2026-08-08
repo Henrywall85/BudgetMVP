@@ -1,18 +1,23 @@
 package com.henry.budgetmvp.ui.navigation
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.*
 import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.BudgetCategory
 import com.henry.budgetmvp.data.IncomeStream
@@ -27,6 +32,57 @@ import com.henry.budgetmvp.viewmodel.BudgetViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+
+@Composable
+private fun RowScope.NavigationTabItem(
+    selected: Boolean,
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    
+    val bgColor = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+        animationSpec = tween(durationMillis = 150),
+        label = "tab_content"
+    )
+
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .height(54.dp)
+            .padding(horizontal = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(bgColor)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null, // Disables ripple bleeding onto adjacent tabs
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                modifier = Modifier.size(20.dp),
+                tint = contentColor
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                color = contentColor
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -135,6 +191,7 @@ fun AppNavigation(
                         Text(
                             text = when (currentScreen) {
                                 Screen.BUDGET -> "PAYCHECK BUDGET"
+                                Screen.CALENDAR -> "DUE DATE CALENDAR"
                                 Screen.HOUSEHOLD -> "HOUSEHOLD MEMBERS"
                                 Screen.SETTINGS -> "SETTINGS"
                                 else -> "TRANSACTIONS"
@@ -143,75 +200,75 @@ fun AppNavigation(
                             style = MaterialTheme.typography.titleMedium
                         )
                     },
-                    navigationIcon = {
-                        if (currentScreen == Screen.HOUSEHOLD || currentScreen == Screen.SETTINGS) {
-                            IconButton(onClick = { 
-                                currentScreen = if (currentScreen == Screen.HOUSEHOLD) Screen.SETTINGS else Screen.BUDGET 
-                            }) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        } else {
-                            IconButton(onClick = { currentScreen = Screen.SETTINGS }) {
-                                Icon(
-                                    imageVector = Icons.Default.Settings,
-                                    contentDescription = "Settings",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { currentScreen = Screen.HOUSEHOLD }) {
-                            BadgedBox(
-                                badge = {
-                                    if (pendingInvites.isNotEmpty()) {
-                                        Badge(
-                                            containerColor = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.offset(x = (-4).dp, y = 4.dp)
-                                        )
-                                    }
+                        navigationIcon = {
+                            if (currentScreen == Screen.HOUSEHOLD || currentScreen == Screen.SETTINGS) {
+                                IconButton(onClick = { 
+                                    currentScreen = if (currentScreen == Screen.HOUSEHOLD) Screen.SETTINGS else Screen.BUDGET 
+                                }) {
+                                    Icon(
+                                        imageVector = Lucide.ArrowLeft,
+                                        contentDescription = "Back",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
                                 }
-                            ) {
+                            } else {
+                                IconButton(onClick = { currentScreen = Screen.SETTINGS }) {
+                                    Icon(
+                                        imageVector = Lucide.Settings,
+                                        contentDescription = "Settings",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = { currentScreen = Screen.HOUSEHOLD }) {
+                                BadgedBox(
+                                    badge = {
+                                        if (pendingInvites.isNotEmpty()) {
+                                            Badge(
+                                                containerColor = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.offset(x = (-4).dp, y = 4.dp)
+                                            )
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Lucide.Bell,
+                                        contentDescription = "Notifications",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(4.dp))
+
+                            if (isSyncing) {
                                 Icon(
-                                    imageVector = if (pendingInvites.isNotEmpty()) Icons.Default.Notifications else Icons.Outlined.Notifications,
-                                    contentDescription = "Notifications",
+                                    imageVector = Lucide.RefreshCw,
+                                    contentDescription = "Syncing",
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Lucide.Cloud,
+                                    contentDescription = "Synced",
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            IconButton(onClick = { showLogoutDialog = true }) {
+                                Icon(
+                                    imageVector = Lucide.LogOut,
+                                    contentDescription = "Logout",
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             }
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        if (isSyncing) {
-                            Icon(
-                                imageVector = Icons.Default.Sync,
-                                contentDescription = "Syncing",
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.CloudDone,
-                                contentDescription = "Synced",
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        IconButton(onClick = { showLogoutDialog = true }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Logout,
-                                contentDescription = "Logout",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    },
+                        },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.background)
                 )
             }
@@ -219,62 +276,48 @@ fun AppNavigation(
         bottomBar = {
             if (currentScreen != Screen.LOGIN && currentScreen != Screen.SIGNUP) {
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp,
-                    modifier = Modifier.fillMaxWidth()
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                    shape = RoundedCornerShape(28.dp),
+                    tonalElevation = 6.dp,
+                    shadowElevation = 8.dp,
+                    border = BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    ),
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .padding(horizontal = 24.dp, vertical = 12.dp)
+                        .fillMaxWidth()
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .navigationBarsPadding()
-                            .height(90.dp)
-                            .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clickable { currentScreen = Screen.BUDGET },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                                .height(68.dp)
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountBalanceWallet,
-                                contentDescription = "Budget",
-                                modifier = Modifier.size(28.dp),
-                                tint = if (currentScreen == Screen.BUDGET) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            NavigationTabItem(
+                                selected = currentScreen == Screen.BUDGET,
+                                icon = Lucide.Wallet,
+                                label = "Budget",
+                                onClick = { currentScreen = Screen.BUDGET }
                             )
-                            Text(
-                                text = "Budget",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (currentScreen == Screen.BUDGET) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
 
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clickable { currentScreen = Screen.TRANSACTIONS },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AttachMoney,
-                                contentDescription = "Transactions",
-                                modifier = Modifier.size(28.dp),
-                                tint = if (currentScreen == Screen.TRANSACTIONS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            NavigationTabItem(
+                                selected = currentScreen == Screen.CALENDAR,
+                                icon = Lucide.Calendar,
+                                label = "Calendar",
+                                onClick = { currentScreen = Screen.CALENDAR }
                             )
-                            Text(
-                                text = "Transactions",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (currentScreen == Screen.TRANSACTIONS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+
+                            NavigationTabItem(
+                                selected = currentScreen == Screen.TRANSACTIONS,
+                                icon = Lucide.ReceiptText,
+                                label = "Transactions",
+                                onClick = { currentScreen = Screen.TRANSACTIONS }
                             )
                         }
-                    }
                 }
             }
         },
@@ -300,7 +343,7 @@ fun AppNavigation(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        Box(modifier = Modifier.padding(padding)) {
+        Box(modifier = Modifier.padding(top = padding.calculateTopPadding())) {
             when (currentScreen) {
                 Screen.LOGIN -> {
                     LoginPage(
@@ -348,6 +391,25 @@ fun AppNavigation(
                         onStartFromScratch = { 
                             viewModel.resetAllHouseholdData()
                             currentScreen = Screen.BUDGET
+                        }
+                    )
+                }
+                Screen.CALENDAR -> {
+                    CalendarScreen(
+                        categoriesWithItems = categoriesWithItems,
+                        filteredTransactions = filteredTransactions,
+                        currentDate = currentDate,
+                        onPreviousMonth = { 
+                            currentDate = currentDate.minusMonths(1)
+                            viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
+                        },
+                        onNextMonth = { 
+                            currentDate = currentDate.plusMonths(1)
+                            viewModel.setMonthYear(currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM")))
+                        },
+                        onEditItem = { item ->
+                            selectedItemForDetail = item
+                            showItemDetailSheet = true
                         }
                     )
                 }
@@ -445,8 +507,11 @@ fun AppNavigation(
                 targetStream = editingStream,
                 onDismiss = { showIncomeSheet = false },
                 onConfirm = { sourceName, amount ->
-                    val streamToSave = IncomeStream(
-                        id = editingStream?.id ?: UUID.randomUUID().toString(),
+                    val streamToSave = editingStream?.copy(
+                        sourceName = sourceName,
+                        monthlyAmount = amount
+                    ) ?: IncomeStream(
+                        id = UUID.randomUUID().toString(),
                         userId = user?.uid ?: "",
                         householdId = "",
                         sourceName = sourceName,
@@ -485,8 +550,10 @@ fun AppNavigation(
                 targetCategory = editingCategory,
                 onDismiss = { showCategorySheet = false },
                 onConfirm = { name ->
-                    val categoryToSave = BudgetCategory(
-                        id = editingCategory?.id ?: UUID.randomUUID().toString(),
+                    val categoryToSave = editingCategory?.copy(
+                        name = name
+                    ) ?: BudgetCategory(
+                        id = UUID.randomUUID().toString(),
                         userId = user?.uid ?: "",
                         householdId = "",
                         name = name
@@ -507,9 +574,12 @@ fun AppNavigation(
                 targetItem = editingItem,
                 onDismiss = { showItemSheet = false },
                 onConfirm = { name, target, dueDay ->
-                    val itemId = editingItem?.id ?: UUID.randomUUID().toString()
-                    val itemToSave = EnvelopeItem(
-                        id = itemId,
+                    val itemToSave = editingItem?.copy(
+                        name = name,
+                        targetAmount = target,
+                        dueDay = dueDay
+                    ) ?: EnvelopeItem(
+                        id = UUID.randomUUID().toString(),
                         userId = user?.uid ?: "",
                         householdId = "",
                         categoryId = activeCategoryId ?: "",

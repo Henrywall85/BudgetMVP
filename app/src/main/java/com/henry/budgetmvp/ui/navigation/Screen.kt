@@ -1,5 +1,5 @@
 package com.henry.budgetmvp.ui.navigation
 
 enum class Screen {
-    LOGIN, SIGNUP, BUDGET, TRANSACTIONS, HOUSEHOLD, SETTINGS
+    LOGIN, SIGNUP, BUDGET, CALENDAR, TRANSACTIONS, HOUSEHOLD, SETTINGS
 }

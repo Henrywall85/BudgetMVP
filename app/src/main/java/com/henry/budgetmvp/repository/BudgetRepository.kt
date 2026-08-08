@@ -52,7 +52,7 @@ class BudgetRepository @Inject constructor(
 
     // --- Sync Operations ---
     suspend fun fetchAllDataFromCloud(householdId: String, userId: String): Map<String, List<Any>> {
-        return withTimeout(5.seconds) {
+        return withTimeout(15.seconds) {
             firestore.fetchAllData(householdId, userId)
         }
     }

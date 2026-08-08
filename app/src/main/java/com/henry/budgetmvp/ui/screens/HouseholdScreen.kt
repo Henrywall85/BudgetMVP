@@ -4,11 +4,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.*
 import com.henry.budgetmvp.data.HouseholdInvite
 import com.henry.budgetmvp.data.UserProfile
 
@@ -39,7 +37,8 @@ fun HouseholdScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 110.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         // 0. REFRESH ACTION
@@ -47,7 +46,7 @@ fun HouseholdScreen(
             onClick = onRefresh,
             modifier = Modifier.align(Alignment.End)
         ) {
-            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+            Icon(Lucide.RefreshCw, contentDescription = null, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(4.dp))
             Text("Check for invites")
         }
@@ -84,13 +83,13 @@ fun HouseholdScreen(
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             IconButton(onClick = { onDeclineInvite(invite) }) {
-                                Icon(Icons.Default.Close, contentDescription = "Decline", tint = MaterialTheme.colorScheme.error)
+                                Icon(Lucide.X, contentDescription = "Decline", tint = MaterialTheme.colorScheme.error)
                             }
                             IconButton(
                                 onClick = { onAcceptInvite(invite) },
                                 colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.primary)
                             ) {
-                                Icon(Icons.Default.Check, contentDescription = "Accept", tint = MaterialTheme.colorScheme.onPrimary)
+                                Icon(Lucide.Check, contentDescription = "Accept", tint = MaterialTheme.colorScheme.onPrimary)
                             }
                         }
                     }
@@ -125,7 +124,7 @@ fun HouseholdScreen(
                             modifier = Modifier.size(40.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Icon(Lucide.User, contentDescription = null, modifier = Modifier.size(20.dp))
                             }
                         }
                         Spacer(modifier = Modifier.width(16.dp))
@@ -166,7 +165,7 @@ fun HouseholdScreen(
                     placeholder = { Text("email@example.com") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    leadingIcon = { Icon(Icons.Default.Mail, contentDescription = null) }
+                    leadingIcon = { Icon(Lucide.Mail, contentDescription = null) }
                 )
                 Button(
                     onClick = {
@@ -178,7 +177,7 @@ fun HouseholdScreen(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = inviteEmail.contains("@")
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Lucide.Send, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("SEND INVITATION")
                 }

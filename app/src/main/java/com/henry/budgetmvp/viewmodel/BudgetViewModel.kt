@@ -1,5 +1,6 @@
 package com.henry.budgetmvp.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.henry.budgetmvp.data.*
@@ -87,12 +88,12 @@ class BudgetViewModel @Inject constructor(
                 
                 refreshHouseholdData(profile.householdId)
                 refreshPendingInvites(profile.email)
-                syncFromCloud(profile.householdId)
+                syncFromCloud(profile.householdId, isManual = false)
             } catch (e: Exception) {
                 e.printStackTrace()
                 _householdId.value = userId
                 _statusMessage.emit(StatusMessage("Profile load error. Working offline.", MessageType.ERROR))
-                syncFromCloud(userId)
+                syncFromCloud(userId, isManual = false)
             }
         }
     }
@@ -170,7 +171,7 @@ class BudgetViewModel @Inject constructor(
                 
                 refreshHouseholdData(invite.householdId)
                 refreshPendingInvites(updatedProfile.email)
-                syncFromCloud(invite.householdId)
+                syncFromCloud(invite.householdId, isManual = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -189,7 +190,7 @@ class BudgetViewModel @Inject constructor(
         }
     }
 
-    private fun syncFromCloud(householdId: String) {
+    private fun syncFromCloud(householdId: String, isManual: Boolean = false) {
         val uid = _userId.value ?: return
         viewModelScope.launch {
             _isSyncing.value = true
@@ -234,11 +235,15 @@ class BudgetViewModel @Inject constructor(
 
                 repository.syncAllLocalData(incomeList, categoriesList, itemsList, transactionsList)
             } catch (e: TimeoutCancellationException) {
-                e.printStackTrace()
-                _statusMessage.emit(StatusMessage("Cloud sync timed out. Working in offline mode.", MessageType.OFFLINE))
+                Log.e("BudgetSync", "Cloud sync timed out", e)
+                if (isManual) {
+                    _statusMessage.emit(StatusMessage("Cloud sync timed out. Working in offline mode.", MessageType.OFFLINE))
+                }
             } catch (e: Exception) {
-                e.printStackTrace()
-                _statusMessage.emit(StatusMessage("Cloud sync failed. Working in offline mode.", MessageType.OFFLINE))
+                Log.e("BudgetSync", "Cloud sync failed", e)
+                if (isManual) {
+                    _statusMessage.emit(StatusMessage("Cloud sync failed. Working in offline mode.", MessageType.OFFLINE))
+                }
             } finally {
                 _isSyncing.value = false
             }
@@ -299,7 +304,7 @@ class BudgetViewModel @Inject constructor(
                 val profile = UserProfile(userId = uid, email = "", householdId = uid)
                 handleSyncResult(repository.upsertUserProfile(profile))
                 _householdId.value = uid
-                syncFromCloud(uid)
+                syncFromCloud(uid, isManual = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

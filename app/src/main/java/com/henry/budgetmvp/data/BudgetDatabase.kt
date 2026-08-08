@@ -8,7 +8,7 @@ interface BudgetDao {
     @Query("SELECT * FROM user_profile_table WHERE userId = :userId")
     suspend fun getUserProfile(userId: String): UserProfile?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertUserProfile(profile: UserProfile)
 
     @Query("SELECT * FROM multi_income_table WHERE householdId = :householdId AND monthYear = :monthYear ORDER BY id ASC")
@@ -17,7 +17,7 @@ interface BudgetDao {
     @Query("SELECT * FROM multi_income_table WHERE householdId = :householdId AND monthYear = :monthYear")
     suspend fun getIncomeStreamsSync(householdId: String, monthYear: String): List<IncomeStream>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertIncomeStream(stream: IncomeStream)
 
     @Delete
@@ -33,13 +33,13 @@ interface BudgetDao {
     @Query("SELECT * FROM envelope_item_table WHERE householdId = :householdId AND monthYear = :monthYear")
     suspend fun getEnvelopeItemsSync(householdId: String, monthYear: String): List<EnvelopeItem>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertCategory(category: BudgetCategory)
 
     @Delete
     suspend fun deleteCategory(category: BudgetCategory)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertEnvelopeItem(item: EnvelopeItem)
 
     @Delete
@@ -48,7 +48,7 @@ interface BudgetDao {
     @Query("SELECT * FROM transaction_table WHERE householdId = :householdId ORDER BY date DESC")
     fun getAllTransactions(householdId: String): Flow<List<BudgetTransaction>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertTransaction(transaction: BudgetTransaction)
 
     @Delete

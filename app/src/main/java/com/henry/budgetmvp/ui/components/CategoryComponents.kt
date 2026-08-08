@@ -7,14 +7,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,6 +20,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.*
 import com.henry.budgetmvp.data.BudgetCategory
 import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.EnvelopeItem
@@ -59,7 +52,7 @@ fun CategoryHeader(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 Icon(
-                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    imageVector = if (isExpanded) Lucide.ChevronUp else Lucide.ChevronDown,
                     contentDescription = if (isExpanded) "Collapse" else "Expand",
                     modifier = Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.primary
@@ -75,10 +68,10 @@ fun CategoryHeader(
             }
             Row {
                 IconButton(onClick = onAddItem) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Item", modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Lucide.Plus, contentDescription = "Add Item", modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(onClick = onEditCategory) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Edit Category", modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Lucide.EllipsisVertical, contentDescription = "Edit Category", modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -284,7 +277,7 @@ fun ItemDetailSheet(
                     fontWeight = FontWeight.Bold
                 )
                 IconButton(onClick = onEditItem) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Edit Item")
+                    Icon(Lucide.EllipsisVertical, contentDescription = "Edit Item")
                 }
             }
 
@@ -439,7 +432,7 @@ fun CategoryEntrySheet(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Lucide.Trash2, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Delete Category")
                 }
@@ -542,7 +535,7 @@ fun EnvelopeItemEntrySheet(
                     ),
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Default.DateRange, contentDescription = "Select or Change Due Date")
+                            Icon(Lucide.Calendar, contentDescription = "Select or Change Due Date")
                         }
                     },
                     supportingText = { Text("Tap to select the recurring due day") }
@@ -569,7 +562,7 @@ fun EnvelopeItemEntrySheet(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Lucide.Trash2, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Delete Item")
                 }

@@ -8,9 +8,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,9 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.MoreVert
+import com.composables.icons.lucide.*
 import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.IncomeStream
 import com.henry.budgetmvp.data.TransactionType
@@ -71,7 +66,7 @@ fun TotalPoolCard(
             ) {
                 IconButton(onClick = onPreviousMonth) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = Lucide.ArrowLeft,
                         contentDescription = "Previous Month",
                         tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                     )
@@ -88,7 +83,7 @@ fun TotalPoolCard(
 
                 IconButton(onClick = onNextMonth) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        imageVector = Lucide.ArrowRight,
                         contentDescription = "Next Month",
                         tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                     )
@@ -232,7 +227,7 @@ fun IncomeDetailSheet(
                     fontWeight = FontWeight.Bold
                 )
                 IconButton(onClick = onEditStream) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Edit Source")
+                    Icon(Lucide.EllipsisVertical, contentDescription = "Edit Source")
                 }
             }
 
@@ -408,7 +403,7 @@ fun IncomeEntrySheet(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Lucide.Trash2, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Delete Income Source")
                 }
@@ -416,4 +411,3 @@ fun IncomeEntrySheet(
         }
     }
 }
-

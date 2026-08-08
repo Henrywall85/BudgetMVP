@@ -4,15 +4,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.*
 
 @Composable
 fun SettingsScreen(
@@ -24,7 +21,7 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 110.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -58,7 +55,7 @@ fun SettingsScreen(
                     shape = MaterialTheme.shapes.medium,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
                 ) {
-                    Icon(Icons.Default.Groups, contentDescription = null)
+                    Icon(Lucide.Users, contentDescription = null)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text("MANAGE HOUSEHOLD MEMBERS", fontWeight = FontWeight.Bold)
                 }
@@ -97,7 +94,7 @@ fun SettingsScreen(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
                 ) {
-                    Icon(Icons.Default.DeleteForever, contentDescription = null)
+                    Icon(Lucide.Trash2, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("START FROM SCRATCH", fontWeight = FontWeight.Bold)
                 }

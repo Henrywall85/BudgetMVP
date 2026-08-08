@@ -1,11 +1,6 @@
 package com.henry.budgetmvp.ui.components
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -13,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.*
 import com.henry.budgetmvp.data.MessageType
 import com.henry.budgetmvp.data.StatusMessage
 
@@ -22,10 +18,10 @@ fun BudgetNotificationBanner(
     onDismiss: () -> Unit = {}
 ) {
     val (icon, color) = when (statusMessage.type) {
-        MessageType.INFO -> Icons.Default.Info to MaterialTheme.colorScheme.primary
-        MessageType.SUCCESS -> Icons.Default.CheckCircle to Color(0xFF2E7D32) // Success Green
-        MessageType.ERROR -> Icons.Default.Error to MaterialTheme.colorScheme.error
-        MessageType.OFFLINE -> Icons.Default.CloudOff to Color(0xFFD32F2F) // Error Red/Orange
+        MessageType.INFO -> Lucide.Info to MaterialTheme.colorScheme.primary
+        MessageType.SUCCESS -> Lucide.CircleCheck to Color(0xFF2E7D32) // Success Green
+        MessageType.ERROR -> Lucide.CircleAlert to MaterialTheme.colorScheme.error
+        MessageType.OFFLINE -> Lucide.CloudOff to Color(0xFFD32F2F) // Error Red/Orange
     }
 
     Card(

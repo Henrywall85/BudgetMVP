@@ -1,9 +1,12 @@
 package com.henry.budgetmvp.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -35,46 +38,80 @@ fun CategoryHeader(
     category: BudgetCategory,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
-    onEditCategory: () -> Unit,
-    onAddItem: () -> Unit
+    onEditCategory: () -> Unit
 ) {
+    val categoryIcon = remember(category.name) {
+        getCategoryIcon(category.name)
+    }
+
     Surface(
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+        color = Color.Transparent,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onToggleExpand() }
-                .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+                .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                // Icon Badge
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = categoryIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Column {
+                    Text(
+                        text = category.name.uppercase(),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
                 Icon(
                     imageVector = if (isExpanded) Lucide.ChevronUp else Lucide.ChevronDown,
                     contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = category.name.uppercase(),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified,
-                    color = MaterialTheme.colorScheme.primary
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                 )
             }
             Row {
-                IconButton(onClick = onAddItem) {
-                    Icon(Lucide.Plus, contentDescription = "Add Item", modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
-                }
                 IconButton(onClick = onEditCategory) {
-                    Icon(Lucide.EllipsisVertical, contentDescription = "Edit Category", modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Lucide.EllipsisVertical, contentDescription = "Edit Category", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
                 }
             }
         }
+    }
+}
+
+private fun getCategoryIcon(name: String): androidx.compose.ui.graphics.vector.ImageVector {
+    val lower = name.lowercase()
+    return when {
+        lower.contains("housing") || lower.contains("rent") || lower.contains("mortgage") || lower.contains("home") -> Lucide.House
+        lower.contains("food") || lower.contains("grocer") || lower.contains("dining") || lower.contains("eat") -> Lucide.Utensils
+        lower.contains("transport") || lower.contains("car") || lower.contains("gas") || lower.contains("fuel") || lower.contains("auto") -> Lucide.Car
+        lower.contains("utilit") || lower.contains("electric") || lower.contains("water") || lower.contains("gas") || lower.contains("trash") -> Lucide.Zap
+        lower.contains("personal") || lower.contains("fun") || lower.contains("entertainment") || lower.contains("hobby") || lower.contains("gift") -> Lucide.Smile
+        lower.contains("health") || lower.contains("insuranc") || lower.contains("medical") -> Lucide.Activity
+        lower.contains("save") || lower.contains("invest") || lower.contains("debt") || lower.contains("loan") -> Lucide.TrendingUp
+        else -> Lucide.Tag
     }
 }
 

@@ -14,11 +14,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -210,112 +212,114 @@ fun IncomeDetailSheet(
         sheetState = sheetState,
         contentWindowInsets = { WindowInsets(0) }
     ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-                .padding(bottom = 32.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stream.sourceName,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                IconButton(onClick = onEditStream) {
-                    Icon(Lucide.EllipsisVertical, contentDescription = "Edit Source")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    if (stream.monthlyAmount > 0) {
-                        Column {
-                            Text("Planned", style = MaterialTheme.typography.labelSmall)
-                            Text("$${"%,.2f".format(stream.monthlyAmount)}", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    Column {
-                        Text(if (stream.monthlyAmount > 0) "Received" else "Total Received", style = MaterialTheme.typography.labelSmall)
-                        Text("$${"%,.2f".format(receivedAmount)}", fontWeight = FontWeight.Bold, color = Color(0xFF059669))
-                    }
-                    if (stream.monthlyAmount > 0) {
-                        Column {
-                            Text("Pending", style = MaterialTheme.typography.labelSmall)
-                            Text(
-                                "$${"%,.2f".format(if (remaining > 0) remaining else 0.0)}", 
-                                fontWeight = FontWeight.Bold,
-                                color = if (remaining > 0) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF059669)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = "PAYMENT HISTORY",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (transactions.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "No payments recorded yet.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        text = stream.sourceName,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
                     )
+                    IconButton(onClick = onEditStream) {
+                        Icon(Lucide.EllipsisVertical, contentDescription = "Edit Source")
+                    }
                 }
-            } else {
-                transactions.forEach { transaction ->
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onEditTransaction(transaction) }
-                            .padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column {
-                            Text(
-                                text = formatIsoDate(transaction.date),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = if (transaction.merchant.isNotBlank()) transaction.merchant else "Income Payment",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
-                            )
+                        if (stream.monthlyAmount > 0) {
+                            Column {
+                                Text("Planned", style = MaterialTheme.typography.labelSmall)
+                                Text("$${"%,.2f".format(stream.monthlyAmount)}", fontWeight = FontWeight.Bold)
+                            }
                         }
+                        Column {
+                            Text(if (stream.monthlyAmount > 0) "Received" else "Total Received", style = MaterialTheme.typography.labelSmall)
+                            Text("$${"%,.2f".format(receivedAmount)}", fontWeight = FontWeight.Bold, color = Color(0xFF059669))
+                        }
+                        if (stream.monthlyAmount > 0) {
+                            Column {
+                                Text("Pending", style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    "$${"%,.2f".format(if (remaining > 0) remaining else 0.0)}", 
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (remaining > 0) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF059669)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    text = "PAYMENT HISTORY",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (transactions.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
-                            text = "+$${"%,.2f".format(transaction.amount)}",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF059669)
+                            "No payments recorded yet.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                } else {
+                    transactions.forEach { transaction ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onEditTransaction(transaction) }
+                                .padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = formatIsoDate(transaction.date),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = if (transaction.merchant.isNotBlank()) transaction.merchant else "Income Payment",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = "+$${"%,.2f".format(transaction.amount)}",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF059669)
+                            )
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                    }
                 }
             }
         }
@@ -350,62 +354,64 @@ fun IncomeEntrySheet(
         sheetState = sheetState,
         contentWindowInsets = { WindowInsets(0) }
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()).padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = if (targetStream != null) "Edit ${targetStream.sourceName}" else "Add New Income Source",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-
-            OutlinedTextField(
-                value = source,
-                onValueChange = { source = it },
-                label = { Text("Income Source Name") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(
-                    imeAction = ImeAction.Next,
-                    capitalization = KeyboardCapitalization.Words
-                ),
-                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
-                singleLine = true
-            )
-
-            OutlinedTextField(
-                value = amount,
-                onValueChange = { input ->
-                    if (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' }) { amount = input }
-                },
-                label = { Text("Planned Monthly Amount") },
-                placeholder = { Text("$0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                visualTransformation = commaTransformation,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Button(
-                onClick = { onConfirm(source, amount.toDoubleOrNull() ?: 0.0) },
-                enabled = isFormValid,
-                modifier = Modifier.fillMaxWidth()
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Column(
+                modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()).padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(if (targetStream != null) "Update Income Source" else "Save Income Source")
-            }
+                Text(
+                    text = if (targetStream != null) "Edit ${targetStream.sourceName}" else "Add New Income Source",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
 
-            if (targetStream != null) {
-                TextButton(
-                    onClick = onDelete,
+                OutlinedTextField(
+                    value = source,
+                    onValueChange = { source = it },
+                    label = { Text("Income Source Name") },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Next,
+                        capitalization = KeyboardCapitalization.Words
+                    ),
+                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { input ->
+                        if (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' }) { amount = input }
+                    },
+                    label = { Text("Planned Monthly Amount") },
+                    placeholder = { Text("$0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                    visualTransformation = commaTransformation,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = { onConfirm(source, amount.toDoubleOrNull() ?: 0.0) },
+                    enabled = isFormValid,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Lucide.Trash2, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Delete Income Source")
+                    Text(if (targetStream != null) "Update Income Source" else "Save Income Source")
+                }
+
+                if (targetStream != null) {
+                    TextButton(
+                        onClick = onDelete,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Lucide.Trash2, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Delete Income Source")
+                    }
                 }
             }
         }

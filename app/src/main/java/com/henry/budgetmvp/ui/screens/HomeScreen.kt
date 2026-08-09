@@ -17,8 +17,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
 import com.henry.budgetmvp.data.BudgetTransaction
@@ -424,155 +426,157 @@ fun HomeScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             contentWindowInsets = { WindowInsets(0) }
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 48.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Insights & Analytics",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = today.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // --- TAB SWITCHER ---
-                SingleChoiceSegmentedButtonRow(
-                    modifier = Modifier.fillMaxWidth()
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 48.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    SegmentedButton(
-                        selected = insightsTab == 0,
-                        onClick = { insightsTab = 0 },
-                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
-                        label = { Text("Categories", style = MaterialTheme.typography.labelSmall) }
+                    Text(
+                        text = "Insights & Analytics",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
                     )
-                    SegmentedButton(
-                        selected = insightsTab == 1,
-                        onClick = { insightsTab = 1 },
-                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
-                        label = { Text("Essentials", style = MaterialTheme.typography.labelSmall) }
+                    Text(
+                        text = today.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    SegmentedButton(
-                        selected = insightsTab == 2,
-                        onClick = { insightsTab = 2 },
-                        shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
-                        label = { Text("Trends", style = MaterialTheme.typography.labelSmall) }
-                    )
-                }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                when (insightsTab) {
-                    0 -> {
-                        // --- CATEGORIES VIEW ---
-                        Box(contentAlignment = Alignment.Center) {
-                            Canvas(modifier = Modifier.size(200.dp)) {
-                                var startAngle = -90f
-                                categorySpendings.forEachIndexed { index, (_, _, pct) ->
-                                    val sweepAngle = pct * 360f
-                                    drawArc(
-                                        color = sliceColors[index % sliceColors.size],
-                                        startAngle = startAngle,
-                                        sweepAngle = sweepAngle,
-                                        useCenter = false,
-                                        style = Stroke(width = 24.dp.toPx(), cap = StrokeCap.Round)
-                                    )
-                                    startAngle += sweepAngle
+                    // --- TAB SWITCHER ---
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        SegmentedButton(
+                            selected = insightsTab == 0,
+                            onClick = { insightsTab = 0 },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
+                            label = { Text("Categories", style = MaterialTheme.typography.labelSmall) }
+                        )
+                        SegmentedButton(
+                            selected = insightsTab == 1,
+                            onClick = { insightsTab = 1 },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
+                            label = { Text("Essentials", style = MaterialTheme.typography.labelSmall) }
+                        )
+                        SegmentedButton(
+                            selected = insightsTab == 2,
+                            onClick = { insightsTab = 2 },
+                            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+                            label = { Text("Trends", style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    when (insightsTab) {
+                        0 -> {
+                            // --- CATEGORIES VIEW ---
+                            Box(contentAlignment = Alignment.Center) {
+                                Canvas(modifier = Modifier.size(200.dp)) {
+                                    var startAngle = -90f
+                                    categorySpendings.forEachIndexed { index, (_, _, pct) ->
+                                        val sweepAngle = pct * 360f
+                                        drawArc(
+                                            color = sliceColors[index % sliceColors.size],
+                                            startAngle = startAngle,
+                                            sweepAngle = sweepAngle,
+                                            useCenter = false,
+                                            style = Stroke(width = 24.dp.toPx(), cap = StrokeCap.Round)
+                                        )
+                                        startAngle += sweepAngle
+                                    }
+                                    if (categorySpendings.isEmpty()) {
+                                        drawArc(color = Color.LightGray.copy(alpha = 0.2f), startAngle = 0f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 24.dp.toPx(), cap = StrokeCap.Round))
+                                    }
                                 }
-                                if (categorySpendings.isEmpty()) {
-                                    drawArc(color = Color.LightGray.copy(alpha = 0.2f), startAngle = 0f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 24.dp.toPx(), cap = StrokeCap.Round))
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(text = "$${"%,.2f".format(totalSpent)}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+                                    Text(text = "Total Spent", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "$${"%,.2f".format(totalSpent)}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-                                Text(text = "Total Spent", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(40.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            categorySpendings.forEachIndexed { index, (name, spent, pct) ->
-                                val color = sliceColors[index % sliceColors.size]
-                                Column {
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(color))
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Text(text = name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
-                                        }
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(text = "$${"%,.2f".format(spent)}", fontWeight = FontWeight.Bold)
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Surface(color = color.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
-                                                Text(text = "${(pct * 100).toInt()}%", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = color)
+                            Spacer(modifier = Modifier.height(40.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                categorySpendings.forEachIndexed { index, (name, spent, pct) ->
+                                    val color = sliceColors[index % sliceColors.size]
+                                    Column {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(color))
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Text(text = name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                            }
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(text = "$${"%,.2f".format(spent)}", fontWeight = FontWeight.Bold)
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Surface(color = color.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
+                                                    Text(text = "${(pct * 100).toInt()}%", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = color)
+                                                }
                                             }
                                         }
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        LinearProgressIndicator(progress = { pct }, modifier = Modifier.fillMaxWidth().height(4.dp), color = color, trackColor = color.copy(alpha = 0.1f), strokeCap = StrokeCap.Round)
                                     }
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    LinearProgressIndicator(progress = { pct }, modifier = Modifier.fillMaxWidth().height(4.dp), color = color, trackColor = color.copy(alpha = 0.1f), strokeCap = StrokeCap.Round)
                                 }
                             }
                         }
-                    }
-                    1 -> {
-                        // --- 50/30/20 RULE VIEW ---
-                        val needsKeywords = listOf("housing", "rent", "mortgage", "food", "groceries", "utility", "electric", "water", "gas", "insurance", "transport", "car", "health", "bill")
-                        val savingsKeywords = listOf("save", "saving", "invest", "investment", "emergency", "debt", "loan")
-                        
-                        val totals = remember(categorySpendings) {
-                            var needs = 0.0
-                            var wants = 0.0
-                            var savings = 0.0
-                            categorySpendings.forEach { (name, spent, _) ->
-                                val lowerName = name.lowercase()
-                                when {
-                                    needsKeywords.any { lowerName.contains(it) } -> needs += spent
-                                    savingsKeywords.any { lowerName.contains(it) } -> savings += spent
-                                    else -> wants += spent
-                                }
-                            }
-                            Triple(needs, wants, savings)
-                        }
-                        
-                        val (needsSpent, wantsSpent, savingsSpent) = totals
-                        val grandTotal = needsSpent + wantsSpent + savingsSpent
-                        val needsPct = if (grandTotal > 0) (needsSpent / grandTotal).toFloat() else 0f
-                        val wantsPct = if (grandTotal > 0) (wantsSpent / grandTotal).toFloat() else 0f
-                        val savingsPct = if (grandTotal > 0) (savingsSpent / grandTotal).toFloat() else 0f
-
-                        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                            RuleMeter(label = "Needs", actual = needsPct, target = 0.50f, color = Color(0xFF0D9488))
-                            RuleMeter(label = "Wants", actual = wantsPct, target = 0.30f, color = Color(0xFF3B82F6))
-                            RuleMeter(label = "Savings", actual = savingsPct, target = 0.20f, color = Color(0xFFF59E0B))
+                        1 -> {
+                            // --- 50/30/20 RULE VIEW ---
+                            val needsKeywords = listOf("housing", "rent", "mortgage", "food", "groceries", "utility", "electric", "water", "gas", "insurance", "transport", "car", "health", "bill")
+                            val savingsKeywords = listOf("save", "saving", "invest", "investment", "emergency", "debt", "loan")
                             
-                            Spacer(modifier = Modifier.height(8.dp))
+                            val totals = remember(categorySpendings) {
+                                var needs = 0.0
+                                var wants = 0.0
+                                var savings = 0.0
+                                categorySpendings.forEach { (name, spent, _) ->
+                                    val lowerName = name.lowercase()
+                                    when {
+                                        needsKeywords.any { lowerName.contains(it) } -> needs += spent
+                                        savingsKeywords.any { lowerName.contains(it) } -> savings += spent
+                                        else -> wants += spent
+                                    }
+                                }
+                                Triple(needs, wants, savings)
+                            }
+                            
+                            val (needsSpent, wantsSpent, savingsSpent) = totals
+                            val grandTotal = needsSpent + wantsSpent + savingsSpent
+                            val needsPct = if (grandTotal > 0) (needsSpent / grandTotal).toFloat() else 0f
+                            val wantsPct = if (grandTotal > 0) (wantsSpent / grandTotal).toFloat() else 0f
+                            val savingsPct = if (grandTotal > 0) (savingsSpent / grandTotal).toFloat() else 0f
+
+                            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                                RuleMeter(label = "Needs", actual = needsPct, target = 0.50f, color = Color(0xFF0D9488))
+                                RuleMeter(label = "Wants", actual = wantsPct, target = 0.30f, color = Color(0xFF3B82F6))
+                                RuleMeter(label = "Savings", actual = savingsPct, target = 0.20f, color = Color(0xFFF59E0B))
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "The 50/30/20 rule suggests spending 50% on needs, 30% on wants, and 20% on savings or debt repayment.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                        2 -> {
+                            // --- TRENDS VIEW (Simplified for MVP) ---
                             Text(
-                                text = "The 50/30/20 rule suggests spending 50% on needs, 30% on wants, and 20% on savings or debt repayment.",
-                                style = MaterialTheme.typography.bodySmall,
+                                text = "Historical trends coming soon. This view will compare your total expenses over the last 3 months.",
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.padding(top = 32.dp).fillMaxWidth()
                             )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Icon(Lucide.TrendingUp, contentDescription = null, modifier = Modifier.size(64.dp).align(Alignment.CenterHorizontally), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                         }
-                    }
-                    2 -> {
-                        // --- TRENDS VIEW (Simplified for MVP) ---
-                        Text(
-                            text = "Historical trends coming soon. This view will compare your total expenses over the last 3 months.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(top = 32.dp).fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Icon(Lucide.TrendingUp, contentDescription = null, modifier = Modifier.size(64.dp).align(Alignment.CenterHorizontally), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                     }
                 }
             }

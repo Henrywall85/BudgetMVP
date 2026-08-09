@@ -12,10 +12,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
 import com.henry.budgetmvp.data.BudgetTransaction
@@ -387,245 +389,247 @@ fun TransactionEntrySheet(
         sheetState = sheetState,
         contentWindowInsets = { WindowInsets(0) }
     ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = if (targetTransaction == null) "Add Transaction" else "Edit Transaction",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-
-            // Type Toggle
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                SegmentedButton(
-                    selected = type == TransactionType.EXPENSE,
-                    onClick = { type = TransactionType.EXPENSE },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                ) {
-                    Text("Expense")
-                }
-                SegmentedButton(
-                    selected = type == TransactionType.INCOME,
-                    onClick = { type = TransactionType.INCOME },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                ) {
-                    Text("Income")
-                }
-            }
-
-            OutlinedTextField(
-                value = amount,
-                onValueChange = { input ->
-                    if (input.count { it == '.' } <= 1 && (input.all { it.isDigit() || it == '.' })) {
-                        amount = input
-                    }
-                },
-                label = { Text("Amount") },
-                placeholder = { Text("$0.00") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
-                visualTransformation = commaTransformation,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = displayDateStr,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Transaction Date") },
-                    modifier = Modifier.fillMaxWidth()
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = if (targetTransaction == null) "Add Transaction" else "Edit Transaction",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
                 )
-                Box(modifier = Modifier.matchParentSize().clickable { focusManager.clearFocus(); showDatePicker = true })
-            }
 
-            if (type == TransactionType.EXPENSE) {
+                // Type Toggle
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = type == TransactionType.EXPENSE,
+                        onClick = { type = TransactionType.EXPENSE },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                    ) {
+                        Text("Expense")
+                    }
+                    SegmentedButton(
+                        selected = type == TransactionType.INCOME,
+                        onClick = { type = TransactionType.INCOME },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                    ) {
+                        Text("Income")
+                    }
+                }
+
                 OutlinedTextField(
-                    value = merchant,
-                    onValueChange = { merchant = it },
-                    label = { Text("Merchant") },
-                    placeholder = { Text("e.g., Walmart, Amazon") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Next,
-                        capitalization = KeyboardCapitalization.Words
-                    ),
+                    value = amount,
+                    onValueChange = { input ->
+                        if (input.count { it == '.' } <= 1 && (input.all { it.isDigit() || it == '.' })) {
+                            amount = input
+                        }
+                    },
+                    label = { Text("Amount") },
+                    placeholder = { Text("$0.00") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
+                    visualTransformation = commaTransformation,
+                    modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-            }
 
-            if (type == TransactionType.INCOME) {
-                ExposedDropdownMenuBox(
-                    expanded = incomeSourceExpanded,
-                    onExpandedChange = { incomeSourceExpanded = it }
-                ) {
-                    val selectedSource = incomeStreams.find { it.id == selectedIncomeStreamId }
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
-                        value = selectedSource?.sourceName ?: "Select Income Source",
+                        value = displayDateStr,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Income Source") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = incomeSourceExpanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        label = { Text("Transaction Date") },
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    ExposedDropdownMenu(
-                        expanded = incomeSourceExpanded,
-                        onDismissRequest = { incomeSourceExpanded = false }
-                    ) {
-                        incomeStreams.forEach { stream ->
-                            DropdownMenuItem(
-                                text = { Text(stream.sourceName) },
-                                onClick = {
-                                    selectedIncomeStreamId = stream.id
-                                    merchant = stream.sourceName // Set merchant for display in history
-                                    incomeSourceExpanded = false
-                                }
-                            )
-                        }
-                    }
+                    Box(modifier = Modifier.matchParentSize().clickable { focusManager.clearFocus(); showDatePicker = true })
                 }
-            }
 
-            if (type == TransactionType.EXPENSE) {
-                // Category Selector
-                ExposedDropdownMenuBox(
-                    expanded = categoryExpanded,
-                    onExpandedChange = { categoryExpanded = it }
-                ) {
+                if (type == TransactionType.EXPENSE) {
                     OutlinedTextField(
-                        value = selectedCategory?.category?.name ?: "Select Category",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Category") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        value = merchant,
+                        onValueChange = { merchant = it },
+                        label = { Text("Merchant") },
+                        placeholder = { Text("e.g., Walmart, Amazon") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = ImeAction.Next,
+                            capitalization = KeyboardCapitalization.Words
+                        ),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
+                        singleLine = true
                     )
-                    ExposedDropdownMenu(
-                        expanded = categoryExpanded,
-                        onDismissRequest = { categoryExpanded = false }
-                    ) {
-                        categoriesWithItems.forEach { catWithItems ->
-                            DropdownMenuItem(
-                                text = { Text(catWithItems.category.name) },
-                                onClick = {
-                                    selectedCategory = catWithItems
-                                    selectedItemId = null
-                                    categoryExpanded = false
-                                }
-                            )
-                        }
-                    }
                 }
 
-                // Item Selector
-                if (selectedCategory != null) {
+                if (type == TransactionType.INCOME) {
                     ExposedDropdownMenuBox(
-                        expanded = itemExpanded,
-                        onExpandedChange = { itemExpanded = it }
+                        expanded = incomeSourceExpanded,
+                        onExpandedChange = { incomeSourceExpanded = it }
                     ) {
-                        val selectedItem = selectedCategory?.items?.find { it.id == selectedItemId }
+                        val selectedSource = incomeStreams.find { it.id == selectedIncomeStreamId }
                         OutlinedTextField(
-                            value = selectedItem?.name ?: "Select Item",
+                            value = selectedSource?.sourceName ?: "Select Income Source",
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Item") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = itemExpanded) },
+                            label = { Text("Income Source") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = incomeSourceExpanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth()
                         )
                         ExposedDropdownMenu(
-                            expanded = itemExpanded,
-                            onDismissRequest = { itemExpanded = false }
+                            expanded = incomeSourceExpanded,
+                            onDismissRequest = { incomeSourceExpanded = false }
                         ) {
-                            selectedCategory?.items?.forEach { item ->
+                            incomeStreams.forEach { stream ->
                                 DropdownMenuItem(
-                                    text = { Text(item.name) },
+                                    text = { Text(stream.sourceName) },
                                     onClick = {
-                                        selectedItemId = item.id
-                                        itemExpanded = false
+                                        selectedIncomeStreamId = stream.id
+                                        merchant = stream.sourceName // Set merchant for display in history
+                                        incomeSourceExpanded = false
                                     }
                                 )
                             }
                         }
                     }
                 }
-            }
 
-            OutlinedTextField(
-                value = note,
-                onValueChange = { note = it },
-                label = { Text("Note (Optional)") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(
-                    imeAction = ImeAction.Done,
-                    capitalization = KeyboardCapitalization.Sentences
-                ),
-                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                singleLine = true
-            )
-
-
-
-            Button(
-                onClick = {
-                    onConfirm(
-                        type,
-                        amount.toDoubleOrNull() ?: 0.0,
-                        selectedDateIso,
-                        merchant,
-                        note,
-                        selectedItemId,
-                        selectedIncomeStreamId
-                    )
-                },
-                enabled = isFormValid,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (targetTransaction == null) "Add Transaction" else "Update Transaction")
-            }
-
-            if (targetTransaction != null && onDelete != null) {
-                TextButton(
-                    onClick = onDelete,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Icon(Lucide.Trash2, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Delete Transaction")
-                }
-            }
-        }
-
-        if (showDatePicker) {
-            val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = try {
-                    LocalDate.parse(selectedDateIso).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-                } catch (e: Exception) {
-                    System.currentTimeMillis()
-                }
-            )
-            DatePickerDialog(
-                onDismissRequest = { showDatePicker = false },
-                confirmButton = {
-                    TextButton(onClick = {
-                        datePickerState.selectedDateMillis?.let {
-                            selectedDateIso = Instant.ofEpochMilli(it).atZone(ZoneId.of("UTC")).toLocalDate().toString()
+                if (type == TransactionType.EXPENSE) {
+                    // Category Selector
+                    ExposedDropdownMenuBox(
+                        expanded = categoryExpanded,
+                        onExpandedChange = { categoryExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedCategory?.category?.name ?: "Select Category",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Category") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = categoryExpanded,
+                            onDismissRequest = { categoryExpanded = false }
+                        ) {
+                            categoriesWithItems.forEach { catWithItems ->
+                                DropdownMenuItem(
+                                    text = { Text(catWithItems.category.name) },
+                                    onClick = {
+                                        selectedCategory = catWithItems
+                                        selectedItemId = null
+                                        categoryExpanded = false
+                                    }
+                                )
+                            }
                         }
-                        showDatePicker = false
-                    }) { Text("OK") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                    }
+
+                    // Item Selector
+                    if (selectedCategory != null) {
+                        ExposedDropdownMenuBox(
+                            expanded = itemExpanded,
+                            onExpandedChange = { itemExpanded = it }
+                        ) {
+                            val selectedItem = selectedCategory?.items?.find { it.id == selectedItemId }
+                            OutlinedTextField(
+                                value = selectedItem?.name ?: "Select Item",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Item") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = itemExpanded) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = itemExpanded,
+                                onDismissRequest = { itemExpanded = false }
+                            ) {
+                                selectedCategory?.items?.forEach { item ->
+                                    DropdownMenuItem(
+                                        text = { Text(item.name) },
+                                        onClick = {
+                                            selectedItemId = item.id
+                                            itemExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
-            ) {
-                DatePicker(state = datePickerState)
+
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text("Note (Optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Done,
+                        capitalization = KeyboardCapitalization.Sentences
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                    singleLine = true
+                )
+
+
+
+                Button(
+                    onClick = {
+                        onConfirm(
+                            type,
+                            amount.toDoubleOrNull() ?: 0.0,
+                            selectedDateIso,
+                            merchant,
+                            note,
+                            selectedItemId,
+                            selectedIncomeStreamId
+                        )
+                    },
+                    enabled = isFormValid,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (targetTransaction == null) "Add Transaction" else "Update Transaction")
+                }
+
+                if (targetTransaction != null && onDelete != null) {
+                    TextButton(
+                        onClick = onDelete,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Lucide.Trash2, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Delete Transaction")
+                    }
+                }
+            }
+
+            if (showDatePicker) {
+                val datePickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = try {
+                        LocalDate.parse(selectedDateIso).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                    } catch (e: Exception) {
+                        System.currentTimeMillis()
+                    }
+                )
+                DatePickerDialog(
+                    onDismissRequest = { showDatePicker = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            datePickerState.selectedDateMillis?.let {
+                                selectedDateIso = Instant.ofEpochMilli(it).atZone(ZoneId.of("UTC")).toLocalDate().toString()
+                            }
+                            showDatePicker = false
+                        }) { Text("OK") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                    }
+                ) {
+                    DatePicker(state = datePickerState)
+                }
             }
         }
     }

@@ -49,7 +49,8 @@ fun HomeScreen(
     filteredTransactions: List<BudgetTransaction>,
     onNavigateToBudget: () -> Unit,
     onNavigateToCalendar: () -> Unit,
-    onOpenMenu: () -> Unit
+    onOpenMenu: () -> Unit,
+    onMarkPaid: (com.henry.budgetmvp.data.EnvelopeItem, Double) -> Unit
 ) {
     val today = LocalDate.now()
     var showInsightsSheet by remember { mutableStateOf(false) }
@@ -379,9 +380,25 @@ fun HomeScreen(
                         headlineContent = { Text(item.name, fontWeight = FontWeight.Bold) },
                         supportingContent = { Text("Due Day ${item.dueDay}") },
                         trailingContent = {
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("$${"%,.2f".format(remaining)}", fontWeight = FontWeight.Bold)
-                                Text("Remaining", style = MaterialTheme.typography.labelSmall)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text("$${"%,.2f".format(remaining)}", fontWeight = FontWeight.Bold)
+                                    Text("Remaining", style = MaterialTheme.typography.labelSmall)
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                IconButton(
+                                    onClick = { onMarkPaid(item, remaining) },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(Color(0xFF059669).copy(alpha = 0.12f), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Lucide.Check,
+                                        contentDescription = "Mark as Paid",
+                                        tint = Color(0xFF059669),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         },
                         leadingContent = {

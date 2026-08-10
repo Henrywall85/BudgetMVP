@@ -33,11 +33,15 @@ import java.util.Locale
 fun CalendarScreen(
     categoriesWithItems: List<CategoryWithItems>,
     filteredTransactions: List<BudgetTransaction>,
+    streams: List<com.henry.budgetmvp.data.IncomeStream> = emptyList(),
     currentDate: LocalDate,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
-    onEditItem: (EnvelopeItem) -> Unit
+    onEditItem: (EnvelopeItem) -> Unit,
+    onMarkPaid: (EnvelopeItem, Double) -> Unit
 ) {
+    var calendarViewMode by remember { mutableStateOf(0) } // 0: Calendar Grid, 1: Cash Flow Plan
+
     val yearMonth = remember(currentDate) { YearMonth.from(currentDate) }
     val daysInMonth = yearMonth.lengthOfMonth()
     val firstDayOfWeek = yearMonth.atDay(1).dayOfWeek.value % 7 // 0=Sun, 1=Mon...
@@ -95,94 +99,115 @@ fun CalendarScreen(
             }
         }
 
-        // 2. Summary Card
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+        // --- MODE SWITCHER ---
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("Monthly Bills", style = MaterialTheme.typography.labelSmall)
-                    Text("$${"%,.2f".format(totalBillsAmount)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("Funded/Paid", style = MaterialTheme.typography.labelSmall)
-                    Text("$${"%,.2f".format(totalPaidAmount)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
-                }
-            }
+            SegmentedButton(
+                selected = calendarViewMode == 0,
+                onClick = { calendarViewMode = 0 },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                label = { Text("Calendar Grid", style = MaterialTheme.typography.labelSmall) }
+            )
+            SegmentedButton(
+                selected = calendarViewMode == 1,
+                onClick = { calendarViewMode = 1 },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                label = { Text("Cash Flow Plan", style = MaterialTheme.typography.labelSmall) }
+            )
         }
 
-        // 3. Calendar Grid
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-        ) {
-            Column(modifier = Modifier.padding(8.dp)) {
-                // Days of week header
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    val daysOfWeek = listOf("S", "M", "T", "W", "T", "F", "S")
-                    daysOfWeek.forEach { day ->
-                        Text(
-                            text = day,
-                            modifier = Modifier.weight(1f),
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        )
+        if (calendarViewMode == 0) {
+            // --- CALENDAR GRID VIEW ---
+            // 2. Summary Card
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("Monthly Bills", style = MaterialTheme.typography.labelSmall)
+                        Text("$${"%,.2f".format(totalBillsAmount)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Funded/Paid", style = MaterialTheme.typography.labelSmall)
+                        Text("$${"%,.2f".format(totalPaidAmount)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(8.dp))
+            }
 
-                // Calendar Days
-                val totalSlots = (daysInMonth + firstDayOfWeek + 6) / 7 * 7
-                for (row in 0 until (totalSlots / 7)) {
+            // 3. Calendar Grid
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    // Days of week header
                     Row(modifier = Modifier.fillMaxWidth()) {
-                        for (col in 0 until 7) {
-                            val slotIndex = row * 7 + col
-                            val day = slotIndex - firstDayOfWeek + 1
-                            
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .aspectRatio(1f)
-                                    .padding(2.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(
-                                        if (selectedDay == day) MaterialTheme.colorScheme.primaryContainer 
-                                        else if (isCurrentMonth && day == today.dayOfMonth) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
-                                        else Color.Transparent
-                                    )
-                                    .clickable(enabled = day in 1..daysInMonth) { 
-                                        selectedDay = if (selectedDay == day) null else day 
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (day in 1..daysInMonth) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            text = day.toString(),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = if (isCurrentMonth && day == today.dayOfMonth) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isCurrentMonth && day == today.dayOfMonth) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        val daysOfWeek = listOf("S", "M", "T", "W", "T", "F", "S")
+                        daysOfWeek.forEach { day ->
+                            Text(
+                                text = day,
+                                modifier = Modifier.weight(1f),
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Calendar Days
+                    val totalSlots = (daysInMonth + firstDayOfWeek + 6) / 7 * 7
+                    for (row in 0 until (totalSlots / 7)) {
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            for (col in 0 until 7) {
+                                val slotIndex = row * 7 + col
+                                val day = slotIndex - firstDayOfWeek + 1
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .aspectRatio(1f)
+                                        .padding(2.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            if (selectedDay == day) MaterialTheme.colorScheme.primaryContainer 
+                                            else if (isCurrentMonth && day == today.dayOfMonth) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                                            else Color.Transparent
                                         )
-                                        
-                                        // Status dots
-                                        val itemsOnDay = itemsByDueDay[day] ?: emptyList()
-                                        if (itemsOnDay.isNotEmpty()) {
-                                            val statusColor = getCombinedStatusColor(itemsOnDay, spentByItemId, today, currentDate)
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(4.dp)
-                                                    .clip(CircleShape)
-                                                    .background(statusColor)
+                                        .clickable(enabled = day in 1..daysInMonth) { 
+                                            selectedDay = if (selectedDay == day) null else day 
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (day in 1..daysInMonth) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(
+                                                text = day.toString(),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = if (isCurrentMonth && day == today.dayOfMonth) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (isCurrentMonth && day == today.dayOfMonth) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                             )
+                                            
+                                            // Status dots
+                                            val itemsOnDay = itemsByDueDay[day] ?: emptyList()
+                                            if (itemsOnDay.isNotEmpty()) {
+                                                val statusColor = getCombinedStatusColor(itemsOnDay, spentByItemId, today, currentDate)
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(4.dp)
+                                                        .clip(CircleShape)
+                                                        .background(statusColor)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -191,73 +216,197 @@ fun CalendarScreen(
                     }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // 4. Timeline
-        val filteredTimelineItems = remember(allItemsWithDueDates, itemsByDueDay, selectedDay) {
-            if (selectedDay == null) allItemsWithDueDates.sortedBy { it.dueDay }
-            else itemsByDueDay[selectedDay] ?: emptyList()
-        }
+            // 4. Timeline
+            val filteredTimelineItems = remember(allItemsWithDueDates, itemsByDueDay, selectedDay) {
+                if (selectedDay == null) allItemsWithDueDates.sortedBy { it.dueDay }
+                else itemsByDueDay[selectedDay] ?: emptyList()
+            }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 170.dp)
-        ) {
-            if (filteredTimelineItems.isEmpty()) {
-                item {
-                    Text(
-                        text = if (selectedDay == null) "No bills due this month." else "No bills due on the ${selectedDay}th.",
-                        modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                }
-            } else {
-                items(filteredTimelineItems) { item ->
-                    val spent = spentByItemId[item.id] ?: 0.0
-                    val isFunded = spent >= item.targetAmount - 0.001
-                    
-                    val urgencyColor = getItemStatusColor(item, spent, today, currentDate)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 170.dp)
+            ) {
+                if (filteredTimelineItems.isEmpty()) {
+                    item {
+                        Text(
+                            text = if (selectedDay == null) "No bills due this month." else "No bills due on the ${selectedDay}th.",
+                            modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                } else {
+                    items(filteredTimelineItems) { item ->
+                        val spent = spentByItemId[item.id] ?: 0.0
+                        val isFunded = spent >= item.targetAmount - 0.001
+                        
+                        val urgencyColor = getItemStatusColor(item, spent, today, currentDate)
 
-                    Card(
-                        modifier = Modifier.fillMaxWidth().clickable { onEditItem(item) },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable { onEditItem(item) },
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .clip(CircleShape)
-                                        .background(urgencyColor)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(item.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
-                                    Text(
-                                        text = "Due ${item.dueDay}${getOrdinalSuffix(item.dueDay ?: 0)}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Row(
+                                modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(10.dp)
+                                            .clip(CircleShape)
+                                            .background(urgencyColor)
                                     )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(item.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                        Text(
+                                            text = "Due ${item.dueDay}${getOrdinalSuffix(item.dueDay ?: 0)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text("$${"%,.2f".format(item.targetAmount)}", fontWeight = FontWeight.Black, style = MaterialTheme.typography.bodyLarge)
+                                        if (isFunded) {
+                                            Text("PAID", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                                        } else {
+                                            val left = item.targetAmount - spent
+                                            Text("$${"%,.2f".format(left)} LEFT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = urgencyColor)
+                                        }
+                                    }
+                                    if (!isFunded) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        IconButton(
+                                            onClick = { onMarkPaid(item, item.targetAmount - spent) },
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .background(Color(0xFF059669).copy(alpha = 0.12f), CircleShape)
+                                        ) {
+                                            Icon(Lucide.Check, contentDescription = "Mark as Paid", tint = Color(0xFF059669), modifier = Modifier.size(16.dp))
+                                        }
+                                    }
                                 }
                             }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("$${"%,.2f".format(item.targetAmount)}", fontWeight = FontWeight.Black, style = MaterialTheme.typography.bodyLarge)
-                                if (isFunded) {
-                                    Text("PAID", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
-                                } else {
-                                    val left = item.targetAmount - spent
-                                    Text("$${"%,.2f".format(left)} LEFT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = urgencyColor)
+                        }
+                    }
+                }
+            }
+        } else {
+            // --- CASH FLOW PLAN VIEW ---
+            // Combine Income Streams and Bills into a single chronological list
+            val cashFlowEvents = remember(streams, allItemsWithDueDates) {
+                val incomeEvents = streams.map { stream ->
+                    CashFlowEvent(
+                        day = 1, // Default to 1st for income in this MVP
+                        name = stream.sourceName,
+                        amount = stream.monthlyAmount,
+                        isIncome = true
+                    )
+                }
+                val billEvents = allItemsWithDueDates.map { item ->
+                    CashFlowEvent(
+                        day = item.dueDay ?: 1,
+                        name = item.name,
+                        amount = -item.targetAmount,
+                        isIncome = false,
+                        originalItem = item
+                    )
+                }
+                (incomeEvents + billEvents).sortedBy { it.day }
+            }
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 170.dp)
+            ) {
+                var runningBalance = 0.0
+                items(cashFlowEvents) { event ->
+                    runningBalance += event.amount
+                    
+                    val spent = if (event.isIncome) 0.0 else (spentByItemId[event.originalItem?.id] ?: 0.0)
+                    val isFunded = event.isIncome || (spent >= (event.originalItem?.targetAmount ?: 0.0) - 0.001)
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth().then(if(!event.isIncome) Modifier.clickable { onEditItem(event.originalItem!!) } else Modifier),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(if (event.isIncome) Color(0xFF059669).copy(alpha = 0.1f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (event.isIncome) Lucide.HandCoins else Lucide.ReceiptText,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                            tint = if (event.isIncome) Color(0xFF059669) else MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column {
+                                        Text(event.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                        Text(
+                                            text = if (event.isIncome) "Income" else "Due Day ${event.day}${getOrdinalSuffix(event.day)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = "${if (event.amount > 0) "+" else ""}$${"%,.2f".format(event.amount)}",
+                                        fontWeight = FontWeight.Black,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = if (event.isIncome) Color(0xFF059669) else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (!event.isIncome) {
+                                        if (isFunded) {
+                                            Text("PAID", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                                        } else {
+                                            val left = (event.originalItem?.targetAmount ?: 0.0) - spent
+                                            Text("$${"%,.2f".format(left)} LEFT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Projected Balance", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = "$${"%,.2f".format(runningBalance)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (runningBalance < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                )
                             }
                         }
                     }
@@ -266,6 +415,14 @@ fun CalendarScreen(
         }
     }
 }
+
+private data class CashFlowEvent(
+    val day: Int,
+    val name: String,
+    val amount: Double,
+    val isIncome: Boolean,
+    val originalItem: EnvelopeItem? = null
+)
 
 private fun getCombinedStatusColor(items: List<EnvelopeItem>, spentMap: Map<String, Double>, today: LocalDate, currentDate: LocalDate): Color {
     val statuses = items.map { getItemStatusColor(it, spentMap[it.id] ?: 0.0, today, currentDate) }

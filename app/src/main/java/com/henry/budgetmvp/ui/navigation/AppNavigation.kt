@@ -566,6 +566,21 @@ fun AppNavigation(
 
                                     val firstName = profileName.split(" ").firstOrNull()?.replaceFirstChar { it.uppercase() } ?: "Henry"
 
+                                    val onMarkPaid: (EnvelopeItem, Double) -> Unit = { item, remainingAmount ->
+                                        editingTransaction = BudgetTransaction(
+                                            id = UUID.randomUUID().toString(),
+                                            userId = user?.uid ?: "",
+                                            householdId = userProfile?.householdId ?: "",
+                                            type = TransactionType.EXPENSE,
+                                            amount = remainingAmount,
+                                            date = LocalDate.now().toString(),
+                                            merchant = item.name,
+                                            note = "Recurring Bill",
+                                            itemId = item.id
+                                        )
+                                        showTransactionEditSheet = true
+                                    }
+
                                     when (page) {
                                         0 -> {
                                             HomeScreen(
@@ -577,7 +592,8 @@ fun AppNavigation(
                                                 filteredTransactions = filteredTransactions,
                                                 onNavigateToBudget = { coroutineScope.launch { pagerState.animateScrollToPage(1) } },
                                                 onNavigateToCalendar = { coroutineScope.launch { pagerState.animateScrollToPage(2) } },
-                                                onOpenMenu = { coroutineScope.launch { drawerState.open() } }
+                                                onOpenMenu = { coroutineScope.launch { drawerState.open() } },
+                                                onMarkPaid = onMarkPaid
                                             )
                                         }
                                         1 -> {
@@ -647,6 +663,7 @@ fun AppNavigation(
                                             CalendarScreen(
                                                 categoriesWithItems = categoriesWithItems,
                                                 filteredTransactions = filteredTransactions,
+                                                streams = streams,
                                                 currentDate = currentDate,
                                                 onPreviousMonth = { 
                                                     currentDate = currentDate.minusMonths(1)
@@ -659,7 +676,8 @@ fun AppNavigation(
                                                 onEditItem = { item ->
                                                     selectedItemForDetail = item
                                                     showItemDetailSheet = true
-                                                }
+                                                },
+                                                onMarkPaid = onMarkPaid
                                             )
                                         }
                                         3 -> {

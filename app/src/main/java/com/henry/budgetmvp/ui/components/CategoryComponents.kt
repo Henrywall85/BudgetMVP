@@ -612,33 +612,35 @@ fun EnvelopeItemEntrySheet(
     }
 
     if (showDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    val selectedMillis = datePickerState.selectedDateMillis
-                    if (selectedMillis != null) {
-                        val localDate = Instant.ofEpochMilli(selectedMillis)
-                            .atZone(ZoneId.of("UTC"))
-                            .toLocalDate()
-                        selectedDueDay = localDate.dayOfMonth
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val selectedMillis = datePickerState.selectedDateMillis
+                        if (selectedMillis != null) {
+                            val localDate = Instant.ofEpochMilli(selectedMillis)
+                                .atZone(ZoneId.of("UTC"))
+                                .toLocalDate()
+                            selectedDueDay = localDate.dayOfMonth
+                        }
+                        showDatePicker = false
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    Row {
+                        if (selectedDueDay != null) {
+                            TextButton(onClick = {
+                                selectedDueDay = null
+                                showDatePicker = false
+                            }) { Text("Clear Date") }
+                        }
+                        TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
                     }
-                    showDatePicker = false
-                }) { Text("OK") }
-            },
-            dismissButton = {
-                Row {
-                    if (selectedDueDay != null) {
-                        TextButton(onClick = {
-                            selectedDueDay = null
-                            showDatePicker = false
-                        }) { Text("Clear Date") }
-                    }
-                    TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
                 }
+            ) {
+                DatePicker(state = datePickerState)
             }
-        ) {
-            DatePicker(state = datePickerState)
         }
     }
 }

@@ -9,24 +9,57 @@ import kotlinx.coroutines.tasks.await
 class FirestoreSyncManager(private val db: FirebaseFirestore) {
 
     suspend fun fetchAllData(householdId: String, userId: String): Map<String, List<Any>> = coroutineScope {
-        // 1. Fetch by Household ID in parallel
-        val incomeDeferred = async { db.collection("incomeStreams").whereEqualTo("householdId", householdId).get().await().toObjects<IncomeStream>() }
-        val categoriesDeferred = async { db.collection("categories").whereEqualTo("householdId", householdId).get().await().toObjects<BudgetCategory>() }
-        val itemsDeferred = async { db.collection("envelopeItems").whereEqualTo("householdId", householdId).get().await().toObjects<EnvelopeItem>() }
-        val transactionsDeferred = async { db.collection("transactions").whereEqualTo("householdId", householdId).get().await().toObjects<BudgetTransaction>() }
+        android.util.Log.d("BudgetSync", "Starting universal cloud fetch for uid='$userId', householdId='$householdId'")
         
-        // 2. Fetch by User ID in parallel to catch legacy data (missing householdId field)
-        val userIncomeDeferred = async { db.collection("incomeStreams").whereEqualTo("userId", userId).get().await().toObjects<IncomeStream>() }
-        val userCategoriesDeferred = async { db.collection("categories").whereEqualTo("userId", userId).get().await().toObjects<BudgetCategory>() }
-        val userItemsDeferred = async { db.collection("envelopeItems").whereEqualTo("userId", userId).get().await().toObjects<EnvelopeItem>() }
-        val userTransactionsDeferred = async { db.collection("transactions").whereEqualTo("userId", userId).get().await().toObjects<BudgetTransaction>() }
+        val incomeDeferred = async { 
+            try {
+                val hDocs = db.collection("incomeStreams").whereEqualTo("householdId", householdId).get().await().toObjects<IncomeStream>()
+                val uDocs = db.collection("incomeStreams").whereEqualTo("userId", userId).get().await().toObjects<IncomeStream>()
+                (hDocs + uDocs).distinctBy { it.id }
+            } catch (e: Exception) {
+                android.util.Log.e("BudgetSync", "Error fetching income: ${e.message}")
+                emptyList<IncomeStream>()
+            }
+        }
+        
+        val categoriesDeferred = async { 
+            try {
+                val hDocs = db.collection("categories").whereEqualTo("householdId", householdId).get().await().toObjects<BudgetCategory>()
+                val uDocs = db.collection("categories").whereEqualTo("userId", userId).get().await().toObjects<BudgetCategory>()
+                (hDocs + uDocs).distinctBy { it.id }
+            } catch (e: Exception) {
+                android.util.Log.e("BudgetSync", "Error fetching categories: ${e.message}")
+                emptyList<BudgetCategory>()
+            }
+        }
+        
+        val itemsDeferred = async { 
+            try {
+                val hDocs = db.collection("envelopeItems").whereEqualTo("householdId", householdId).get().await().toObjects<EnvelopeItem>()
+                val uDocs = db.collection("envelopeItems").whereEqualTo("userId", userId).get().await().toObjects<EnvelopeItem>()
+                (hDocs + uDocs).distinctBy { it.id }
+            } catch (e: Exception) {
+                android.util.Log.e("BudgetSync", "Error fetching items: ${e.message}")
+                emptyList<EnvelopeItem>()
+            }
+        }
+        
+        val transactionsDeferred = async { 
+            try {
+                val hDocs = db.collection("transactions").whereEqualTo("householdId", householdId).get().await().toObjects<BudgetTransaction>()
+                val uDocs = db.collection("transactions").whereEqualTo("userId", userId).get().await().toObjects<BudgetTransaction>()
+                (hDocs + uDocs).distinctBy { it.id }
+            } catch (e: Exception) {
+                android.util.Log.e("BudgetSync", "Error fetching transactions: ${e.message}")
+                emptyList<BudgetTransaction>()
+            }
+        }
 
-        // Combine and deduplicate by ID
         mapOf(
-            "income" to (incomeDeferred.await() + userIncomeDeferred.await()).distinctBy { it.id },
-            "categories" to (categoriesDeferred.await() + userCategoriesDeferred.await()).distinctBy { it.id },
-            "items" to (itemsDeferred.await() + userItemsDeferred.await()).distinctBy { it.id },
-            "transactions" to (transactionsDeferred.await() + userTransactionsDeferred.await()).distinctBy { it.id }
+            "income" to incomeDeferred.await(),
+            "categories" to categoriesDeferred.await(),
+            "items" to itemsDeferred.await(),
+            "transactions" to transactionsDeferred.await()
         )
     }
 

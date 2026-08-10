@@ -166,6 +166,17 @@ class BudgetViewModel @Inject constructor(
         refreshPendingInvites(email, showStatus = true)
     }
 
+    fun manualSync() {
+        val uid = _userId.value ?: return
+        val hId = _householdId.value ?: uid
+        viewModelScope.launch {
+            _statusMessage.emit(StatusMessage("Checking for cloud updates...", MessageType.INFO))
+            syncFromCloud(hId, isManual = true)
+            refreshHouseholdData(hId)
+            _userProfile.value?.email?.let { refreshPendingInvites(it) }
+        }
+    }
+
     fun acceptInvite(invite: HouseholdInvite) {
         val uid = _userId.value ?: return
         viewModelScope.launch {
@@ -200,63 +211,59 @@ class BudgetViewModel @Inject constructor(
         }
     }
 
-    private fun syncFromCloud(householdId: String, isManual: Boolean = false) {
+    private suspend fun syncFromCloud(householdId: String, isManual: Boolean = false) {
         val uid = _userId.value ?: return
-        viewModelScope.launch {
-            _isSyncing.value = true
-            try {
-                val data = repository.fetchAllDataFromCloud(householdId, uid)
-                
-                @Suppress("UNCHECKED_CAST")
-                val incomeList = (data["income"] as? List<IncomeStream>)?.map { stream ->
-                    val updated = if (stream.householdId.isEmpty()) stream.copy(householdId = householdId) else stream
-                    if (stream.householdId.isEmpty()) {
-                        repository.saveIncomeStream(updated)
-                    }
-                    updated
-                } ?: emptyList()
-                
-                @Suppress("UNCHECKED_CAST")
-                val categoriesList = (data["categories"] as? List<BudgetCategory>)?.map { cat ->
-                    val updated = if (cat.householdId.isEmpty()) cat.copy(householdId = householdId) else cat
-                    if (cat.householdId.isEmpty()) {
-                        repository.saveCategory(updated)
-                    }
-                    updated
-                } ?: emptyList()
-                
-                @Suppress("UNCHECKED_CAST")
-                val itemsList = (data["items"] as? List<EnvelopeItem>)?.map { item ->
-                    val updated = if (item.householdId.isEmpty()) item.copy(householdId = householdId) else item
-                    if (item.householdId.isEmpty()) {
-                        repository.saveEnvelopeItem(updated)
-                    }
-                    updated
-                } ?: emptyList()
-                
-                @Suppress("UNCHECKED_CAST")
-                val transactionsList = (data["transactions"] as? List<BudgetTransaction>)?.map { tx ->
-                    val updated = if (tx.householdId.isEmpty()) tx.copy(householdId = householdId) else tx
-                    if (tx.householdId.isEmpty()) {
-                        repository.saveTransaction(updated)
-                    }
-                    updated
-                } ?: emptyList()
+        _isSyncing.value = true
+        try {
+            val data = repository.fetchAllDataFromCloud(householdId, uid)
+            val currentMonth = _selectedMonthYear.value ?: LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
+            
+            @Suppress("UNCHECKED_CAST")
+            val incomeList = (data["income"] as? List<IncomeStream>)?.map { stream ->
+                stream.copy(
+                    householdId = householdId,
+                    monthYear = if (stream.monthYear.isNullOrBlank()) currentMonth else stream.monthYear
+                )
+            } ?: emptyList()
+            
+            @Suppress("UNCHECKED_CAST")
+            val categoriesList = (data["categories"] as? List<BudgetCategory>)?.map { cat ->
+                cat.copy(
+                    householdId = householdId,
+                    monthYear = if (cat.monthYear.isNullOrBlank()) currentMonth else cat.monthYear
+                )
+            } ?: emptyList()
+            
+            @Suppress("UNCHECKED_CAST")
+            val itemsList = (data["items"] as? List<EnvelopeItem>)?.map { item ->
+                item.copy(
+                    householdId = householdId,
+                    monthYear = if (item.monthYear.isNullOrBlank()) currentMonth else item.monthYear
+                )
+            } ?: emptyList()
+            
+            @Suppress("UNCHECKED_CAST")
+            val transactionsList = (data["transactions"] as? List<BudgetTransaction>)?.map { tx ->
+                tx.copy(householdId = householdId)
+            } ?: emptyList()
 
-                repository.syncAllLocalData(incomeList, categoriesList, itemsList, transactionsList)
-            } catch (e: TimeoutCancellationException) {
-                Log.e("BudgetSync", "Cloud sync timed out", e)
-                if (isManual) {
-                    _statusMessage.emit(StatusMessage("Cloud sync timed out. Working in offline mode.", MessageType.OFFLINE))
-                }
-            } catch (e: Exception) {
-                Log.e("BudgetSync", "Cloud sync failed", e)
-                if (isManual) {
-                    _statusMessage.emit(StatusMessage("Cloud sync failed. Working in offline mode.", MessageType.OFFLINE))
-                }
-            } finally {
-                _isSyncing.value = false
+            repository.syncAllLocalData(incomeList, categoriesList, itemsList, transactionsList)
+            
+            if (isManual) {
+                _statusMessage.emit(StatusMessage("Successfully restored ${categoriesList.size} categories and ${transactionsList.size} transactions!", MessageType.SUCCESS))
             }
+        } catch (e: TimeoutCancellationException) {
+            Log.e("BudgetSync", "Cloud sync timed out", e)
+            if (isManual) {
+                _statusMessage.emit(StatusMessage("Cloud sync timed out. Working in offline mode.", MessageType.OFFLINE))
+            }
+        } catch (e: Exception) {
+            Log.e("BudgetSync", "Cloud sync failed", e)
+            if (isManual) {
+                _statusMessage.emit(StatusMessage("Cloud sync failed: ${e.localizedMessage}", MessageType.ERROR))
+            }
+        } finally {
+            _isSyncing.value = false
         }
     }
 

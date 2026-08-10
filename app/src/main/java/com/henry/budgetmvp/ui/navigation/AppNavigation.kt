@@ -353,7 +353,7 @@ fun AppNavigation(
                                 label = { Text("Sync with Cloud", fontWeight = FontWeight.Medium) },
                                 selected = false,
                                 onClick = { 
-                                    viewModel.refreshInvites()
+                                    viewModel.manualSync()
                                     coroutineScope.launch { drawerState.close() }
                                 },
                                 icon = { Icon(Lucide.RefreshCw, contentDescription = null, modifier = Modifier.size(22.dp)) },
@@ -733,16 +733,22 @@ fun AppNavigation(
             IncomeEntrySheet(
                 targetStream = editingStream,
                 onDismiss = { showIncomeSheet = false },
-                onConfirm = { sourceName, amount ->
+                onConfirm = { sourceName, amount, scheduleType, anchor, payDays ->
                     val streamToSave = editingStream?.copy(
                         sourceName = sourceName,
-                        monthlyAmount = amount
+                        monthlyAmount = amount,
+                        payScheduleType = scheduleType,
+                        anchorDate = anchor,
+                        payDays = payDays
                     ) ?: IncomeStream(
                         id = UUID.randomUUID().toString(),
                         userId = user?.uid ?: "",
                         householdId = "",
                         sourceName = sourceName,
-                        monthlyAmount = amount
+                        monthlyAmount = amount,
+                        payScheduleType = scheduleType,
+                        anchorDate = anchor,
+                        payDays = payDays
                     )
                     viewModel.saveIncomeStream(streamToSave)
                     showIncomeSheet = false

@@ -84,16 +84,33 @@ interface BudgetDao {
         items: List<EnvelopeItem>,
         transactions: List<BudgetTransaction>
     ) {
+        // 1. Insert Income Streams
         income.forEach { upsertIncomeStream(it) }
+
+        // 2. Insert Categories First
         categories.forEach { upsertCategory(it) }
-        items.forEach { upsertEnvelopeItem(it) }
-        transactions.forEach { upsertTransaction(it) }
+        val validCategoryIds = categories.map { it.id }.toSet()
+
+        // 3. Filter Items to only those with valid Category parents
+        val validItems = items.filter { it.categoryId.isNotBlank() && validCategoryIds.contains(it.categoryId) }
+        validItems.forEach { upsertEnvelopeItem(it) }
+        val validItemIds = validItems.map { it.id }.toSet()
+
+        // 4. Sanitize Transactions so missing item references become null
+        val sanitizedTransactions = transactions.map { tx ->
+            if (tx.itemId != null && !validItemIds.contains(tx.itemId)) {
+                tx.copy(itemId = null)
+            } else {
+                tx
+            }
+        }
+        sanitizedTransactions.forEach { upsertTransaction(it) }
     }
 }
 
 @Database(
     entities = [IncomeStream::class, BudgetCategory::class, EnvelopeItem::class, BudgetTransaction::class, UserProfile::class],
-    version = 20,
+    version = 24,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

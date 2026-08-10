@@ -304,14 +304,63 @@ fun CalendarScreen(
         } else {
             // --- CASH FLOW PLAN VIEW ---
             // Combine Income Streams and Bills into a single chronological list
-            val cashFlowEvents = remember(streams, allItemsWithDueDates) {
-                val incomeEvents = streams.map { stream ->
-                    CashFlowEvent(
-                        day = 1, // Default to 1st for income in this MVP
-                        name = stream.sourceName,
-                        amount = stream.monthlyAmount,
-                        isIncome = true
-                    )
+            val cashFlowEvents = remember(streams, allItemsWithDueDates, currentDate) {
+                val incomeEvents = streams.flatMap { stream ->
+                    val actualPayDays = when (stream.payScheduleType) {
+                        "WEEKLY", "BI_WEEKLY" -> {
+                            if (stream.anchorDate.isBlank()) emptyList<Int>()
+                            else {
+                                val anchor = LocalDate.parse(stream.anchorDate)
+                                val interval = if (stream.payScheduleType == "WEEKLY") 7L else 14L
+                                val days = mutableListOf<Int>()
+                                
+                                // Find first occurrence in or before the month
+                                var current = anchor
+                                val startOfMonth = currentDate.withDayOfMonth(1)
+                                val endOfMonth = currentDate.withDayOfMonth(currentDate.lengthOfMonth())
+                                
+                                // Rewind if anchor is in future month
+                                while (current.isAfter(endOfMonth)) current = current.minusDays(interval)
+                                // Fast forward to current month
+                                while (current.isBefore(startOfMonth)) current = current.plusDays(interval)
+                                
+                                // Collect all occurrences in the month
+                                while (!current.isAfter(endOfMonth)) {
+                                    if (!current.isBefore(startOfMonth)) {
+                                        days.add(current.dayOfMonth)
+                                    }
+                                    current = current.plusDays(interval)
+                                }
+                                days
+                            }
+                        }
+                        else -> {
+                            stream.payDays.split(",")
+                                .filter { it.isNotBlank() }
+                                .mapNotNull { it.trim().toIntOrNull() }
+                        }
+                    }
+                    
+                    if (actualPayDays.isEmpty()) {
+                        listOf(
+                            CashFlowEvent(
+                                day = 1,
+                                name = stream.sourceName,
+                                amount = stream.monthlyAmount,
+                                isIncome = true
+                            )
+                        )
+                    } else {
+                        val amountPerDay = stream.monthlyAmount / actualPayDays.size
+                        actualPayDays.sorted().mapIndexed { index, day ->
+                            CashFlowEvent(
+                                day = day,
+                                name = if (actualPayDays.size > 1) "${stream.sourceName} (${index + 1}/${actualPayDays.size})" else stream.sourceName,
+                                amount = amountPerDay,
+                                isIncome = true
+                            )
+                        }
+                    }
                 }
                 val billEvents = allItemsWithDueDates.map { item ->
                     CashFlowEvent(

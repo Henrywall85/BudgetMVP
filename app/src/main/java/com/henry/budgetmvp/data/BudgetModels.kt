@@ -14,7 +14,10 @@ data class IncomeStream(
     val householdId: String = "",
     val monthYear: String = "", // e.g. "2026-08"
     val sourceName: String = "",
-    val monthlyAmount: Double = 0.0
+    val monthlyAmount: Double = 0.0,
+    val payScheduleType: String = "BI_WEEKLY", // "BI_WEEKLY", "WEEKLY", "TWICE_MONTHLY", "MONTHLY", "CUSTOM"
+    val anchorDate: String = "",                   // Reference date in "yyyy-MM-dd"
+    val payDays: String = ""                       // Comma-separated days for non-anchor types
 )
 
 @Entity(tableName = "budget_category_table")

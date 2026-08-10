@@ -40,14 +40,8 @@ fun CalendarScreen(
     onEditItem: (EnvelopeItem) -> Unit,
     onMarkPaid: (EnvelopeItem, Double) -> Unit
 ) {
-    var calendarViewMode by remember { mutableStateOf(0) } // 0: Calendar Grid, 1: Cash Flow Plan
+    var calendarViewMode by remember { mutableStateOf(0) } // 0: Calendar Grid, 1: Paycheck Planner
 
-    val yearMonth = remember(currentDate) { YearMonth.from(currentDate) }
-    val daysInMonth = yearMonth.lengthOfMonth()
-    val firstDayOfWeek = yearMonth.atDay(1).dayOfWeek.value % 7 // 0=Sun, 1=Mon...
-    
-    var selectedDay by remember { mutableStateOf<Int?>(null) }
-    
     val allItemsWithDueDates = remember(categoriesWithItems) {
         categoriesWithItems.flatMap { it.items }.filter { it.dueDay != null }
     }
@@ -60,19 +54,7 @@ fun CalendarScreen(
             .mapValues { (_, txs) -> txs.sumOf { it.amount } }
     }
 
-    val itemsByDueDay = remember(allItemsWithDueDates) {
-        allItemsWithDueDates.groupBy { it.dueDay }
-    }
-    
     val today = LocalDate.now()
-    val isCurrentMonth = today.year == currentDate.year && today.month == currentDate.month
-
-    // --- Calculations ---
-    val totalBillsAmount = allItemsWithDueDates.sumOf { it.targetAmount }
-    val totalPaidAmount = allItemsWithDueDates.sumOf { item ->
-        val spent = spentByItemId[item.id] ?: 0.0
-        spent.coerceAtMost(item.targetAmount)
-    }
 
     Column(
         modifier = Modifier
@@ -113,12 +95,27 @@ fun CalendarScreen(
                 selected = calendarViewMode == 1,
                 onClick = { calendarViewMode = 1 },
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                label = { Text("Cash Flow Plan", style = MaterialTheme.typography.labelSmall) }
+                label = { Text("Paycheck Planner", style = MaterialTheme.typography.labelSmall) }
             )
         }
 
         if (calendarViewMode == 0) {
             // --- CALENDAR GRID VIEW ---
+            val yearMonth = remember(currentDate) { YearMonth.from(currentDate) }
+            val daysInMonth = yearMonth.lengthOfMonth()
+            val firstDayOfWeek = yearMonth.atDay(1).dayOfWeek.value % 7
+            var selectedDay by remember { mutableStateOf<Int?>(null) }
+            val itemsByDueDay = remember(allItemsWithDueDates) {
+                allItemsWithDueDates.groupBy { it.dueDay }
+            }
+            val isCurrentMonth = today.year == currentDate.year && today.month == currentDate.month
+
+            val totalBillsAmount = allItemsWithDueDates.sumOf { it.targetAmount }
+            val totalPaidAmount = allItemsWithDueDates.sumOf { item ->
+                val spent = spentByItemId[item.id] ?: 0.0
+                spent.coerceAtMost(item.targetAmount)
+            }
+
             // 2. Summary Card
             Card(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
@@ -147,7 +144,6 @@ fun CalendarScreen(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
-                    // Days of week header
                     Row(modifier = Modifier.fillMaxWidth()) {
                         val daysOfWeek = listOf("S", "M", "T", "W", "T", "F", "S")
                         daysOfWeek.forEach { day ->
@@ -161,17 +157,13 @@ fun CalendarScreen(
                             )
                         }
                     }
-                    
                     Spacer(modifier = Modifier.height(8.dp))
-
-                    // Calendar Days
                     val totalSlots = (daysInMonth + firstDayOfWeek + 6) / 7 * 7
                     for (row in 0 until (totalSlots / 7)) {
                         Row(modifier = Modifier.fillMaxWidth()) {
                             for (col in 0 until 7) {
                                 val slotIndex = row * 7 + col
                                 val day = slotIndex - firstDayOfWeek + 1
-                                
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
@@ -196,17 +188,10 @@ fun CalendarScreen(
                                                 fontWeight = if (isCurrentMonth && day == today.dayOfMonth) FontWeight.Bold else FontWeight.Normal,
                                                 color = if (isCurrentMonth && day == today.dayOfMonth) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                             )
-                                            
-                                            // Status dots
                                             val itemsOnDay = itemsByDueDay[day] ?: emptyList()
                                             if (itemsOnDay.isNotEmpty()) {
                                                 val statusColor = getCombinedStatusColor(itemsOnDay, spentByItemId, today, currentDate)
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(4.dp)
-                                                        .clip(CircleShape)
-                                                        .background(statusColor)
-                                                )
+                                                Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(statusColor))
                                             }
                                         }
                                     }
@@ -219,7 +204,6 @@ fun CalendarScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 4. Timeline
             val filteredTimelineItems = remember(allItemsWithDueDates, itemsByDueDay, selectedDay) {
                 if (selectedDay == null) allItemsWithDueDates.sortedBy { it.dueDay }
                 else itemsByDueDay[selectedDay] ?: emptyList()
@@ -244,9 +228,7 @@ fun CalendarScreen(
                     items(filteredTimelineItems) { item ->
                         val spent = spentByItemId[item.id] ?: 0.0
                         val isFunded = spent >= item.targetAmount - 0.001
-                        
                         val urgencyColor = getItemStatusColor(item, spent, today, currentDate)
-
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable { onEditItem(item) },
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -258,12 +240,7 @@ fun CalendarScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(10.dp)
-                                            .clip(CircleShape)
-                                            .background(urgencyColor)
-                                    )
+                                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(urgencyColor))
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
                                         Text(item.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
@@ -302,160 +279,157 @@ fun CalendarScreen(
                 }
             }
         } else {
-            // --- CASH FLOW PLAN VIEW ---
-            // Combine Income Streams and Bills into a single chronological list
-            val cashFlowEvents = remember(streams, allItemsWithDueDates, currentDate) {
-                val incomeEvents = streams.flatMap { stream ->
-                    val actualPayDays = when (stream.payScheduleType) {
-                        "WEEKLY", "BI_WEEKLY" -> {
-                            if (stream.anchorDate.isBlank()) emptyList<Int>()
-                            else {
-                                val anchor = LocalDate.parse(stream.anchorDate)
-                                val interval = if (stream.payScheduleType == "WEEKLY") 7L else 14L
-                                val days = mutableListOf<Int>()
-                                
-                                // Find first occurrence in or before the month
-                                var current = anchor
-                                val startOfMonth = currentDate.withDayOfMonth(1)
-                                val endOfMonth = currentDate.withDayOfMonth(currentDate.lengthOfMonth())
-                                
-                                // Rewind if anchor is in future month
-                                while (current.isAfter(endOfMonth)) current = current.minusDays(interval)
-                                // Fast forward to current month
-                                while (current.isBefore(startOfMonth)) current = current.plusDays(interval)
-                                
-                                // Collect all occurrences in the month
-                                while (!current.isAfter(endOfMonth)) {
-                                    if (!current.isBefore(startOfMonth)) {
-                                        days.add(current.dayOfMonth)
-                                    }
-                                    current = current.plusDays(interval)
-                                }
-                                days
-                            }
-                        }
-                        else -> {
-                            stream.payDays.split(",")
-                                .filter { it.isNotBlank() }
-                                .mapNotNull { it.trim().toIntOrNull() }
-                        }
-                    }
-                    
-                    if (actualPayDays.isEmpty()) {
-                        listOf(
-                            CashFlowEvent(
-                                day = 1,
-                                name = stream.sourceName,
-                                amount = stream.monthlyAmount,
-                                isIncome = true
-                            )
-                        )
+            // --- EVERYDOLLAR PAYCHECK PLANNER VIEW ---
+            val currentYearMonth = remember(currentDate) { YearMonth.from(currentDate) }
+
+            data class PaycheckBucket(
+                val index: Int,
+                val sourceName: String,
+                val payday: Int,
+                val incomeAmount: Double,
+                val periodStartDay: Int,
+                val periodEndDay: Int
+            )
+
+            val paycheckBuckets = remember(streams, currentDate) {
+                val events = mutableListOf<Triple<String, Int, Double>>()
+                streams.forEach { stream ->
+                    val days = calculatePayDaysForMonth(stream.payScheduleType, stream.anchorDate, stream.payDays, currentYearMonth)
+                    if (days.isEmpty()) {
+                        events.add(Triple(stream.sourceName, 1, stream.monthlyAmount))
                     } else {
-                        val amountPerDay = stream.monthlyAmount / actualPayDays.size
-                        actualPayDays.sorted().mapIndexed { index, day ->
-                            CashFlowEvent(
-                                day = day,
-                                name = if (actualPayDays.size > 1) "${stream.sourceName} (${index + 1}/${actualPayDays.size})" else stream.sourceName,
-                                amount = amountPerDay,
-                                isIncome = true
-                            )
-                        }
+                        val perDay = stream.monthlyAmount / days.size
+                        days.forEach { d -> events.add(Triple(stream.sourceName, d, perDay)) }
                     }
                 }
-                val billEvents = allItemsWithDueDates.map { item ->
-                    CashFlowEvent(
-                        day = item.dueDay ?: 1,
-                        name = item.name,
-                        amount = -item.targetAmount,
-                        isIncome = false,
-                        originalItem = item
+                val sortedEvents = events.sortedBy { it.second }
+                val totalDays = currentYearMonth.lengthOfMonth()
+
+                sortedEvents.mapIndexed { idx, (source, day, amount) ->
+                    val start = day
+                    val end = if (idx == sortedEvents.lastIndex) totalDays else sortedEvents[idx + 1].second - 1
+                    PaycheckBucket(
+                        index = idx + 1,
+                        sourceName = source,
+                        payday = day,
+                        incomeAmount = amount,
+                        periodStartDay = start,
+                        periodEndDay = end.coerceAtLeast(start)
                     )
                 }
-                (incomeEvents + billEvents).sortedBy { it.day }
             }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 170.dp)
-            ) {
-                var runningBalance = 0.0
-                items(cashFlowEvents) { event ->
-                    runningBalance += event.amount
-                    
-                    val spent = if (event.isIncome) 0.0 else (spentByItemId[event.originalItem?.id] ?: 0.0)
-                    val isFunded = event.isIncome || (spent >= (event.originalItem?.targetAmount ?: 0.0) - 0.001)
+            var selectedBucketIndex by remember { mutableStateOf(0) }
+            val activeBucket = paycheckBuckets.getOrNull(selectedBucketIndex) ?: paycheckBuckets.firstOrNull()
 
-                    Card(
-                        modifier = Modifier.fillMaxWidth().then(if(!event.isIncome) Modifier.clickable { onEditItem(event.originalItem!!) } else Modifier),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .background(if (event.isIncome) Color(0xFF059669).copy(alpha = 0.1f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = if (event.isIncome) Lucide.HandCoins else Lucide.ReceiptText,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(20.dp),
-                                            tint = if (event.isIncome) Color(0xFF059669) else MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(16.dp))
+            if (paycheckBuckets.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize().padding(top = 40.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        "No income sources configured for ${currentDate.format(DateTimeFormatter.ofPattern("MMMM yyyy"))}.\nAdd an income source in Budget to plan by paycheck.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else if (activeBucket != null) {
+                val assignedBills = remember(allItemsWithDueDates, activeBucket) {
+                    allItemsWithDueDates.filter { item ->
+                        val due = item.dueDay ?: 1
+                        due in activeBucket.periodStartDay..activeBucket.periodEndDay
+                    }.sortedBy { it.dueDay }
+                }
+                val totalAssignedBills = assignedBills.sumOf { it.targetAmount }
+                val safeBuffer = activeBucket.incomeAmount - totalAssignedBills
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 170.dp)
+                ) {
+                    item {
+                        androidx.compose.foundation.lazy.LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            items(paycheckBuckets.size) { idx ->
+                                val bucket = paycheckBuckets[idx]
+                                val isSelected = idx == selectedBucketIndex
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { selectedBucketIndex = idx },
+                                    leadingIcon = { Icon(Lucide.HandCoins, null, modifier = Modifier.size(16.dp), tint = if (isSelected) Color(0xFF059669) else MaterialTheme.colorScheme.onSurfaceVariant) },
+                                    label = { Text("Paycheck ${bucket.index} • Day ${bucket.payday} ($${"%,.0f".format(bucket.incomeAmount)})", fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFF059669).copy(alpha = 0.15f), selectedLabelColor = Color(0xFF059669))
+                                )
+                            }
+                        }
+                    }
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = if (safeBuffer >= 0) Color(0xFF059669).copy(alpha = 0.1f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)),
+                            border = BorderStroke(1.5.dp, if (safeBuffer >= 0) Color(0xFF059669).copy(alpha = 0.3f) else MaterialTheme.colorScheme.error.copy(alpha = 0.4f))
+                        ) {
+                            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Column {
-                                        Text(event.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
-                                        Text(
-                                            text = if (event.isIncome) "Income" else "Due Day ${event.day}${getOrdinalSuffix(event.day)}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                        Text("${activeBucket.sourceName} (Paycheck ${activeBucket.index})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                        Text("Funding Days ${activeBucket.periodStartDay} – ${activeBucket.periodEndDay}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
+                                    Text("+$${"%,.2f".format(activeBucket.incomeAmount)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color(0xFF059669))
                                 }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(
-                                        text = "${if (event.amount > 0) "+" else ""}$${"%,.2f".format(event.amount)}",
-                                        fontWeight = FontWeight.Black,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = if (event.isIncome) Color(0xFF059669) else MaterialTheme.colorScheme.onSurface
-                                    )
-                                    if (!event.isIncome) {
-                                        if (isFunded) {
-                                            Text("PAID", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
-                                        } else {
-                                            val left = (event.originalItem?.targetAmount ?: 0.0) - spent
-                                            Text("$${"%,.2f".format(left)} LEFT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-                                        }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Column {
+                                        Text("Assigned Bills", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("-$${"%,.2f".format(totalAssignedBills)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(if (safeBuffer >= 0) "🛡️ Safe Cash Buffer" else "⚠️ Cash Deficit", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = if (safeBuffer >= 0) Color(0xFF059669) else MaterialTheme.colorScheme.error)
+                                        Text("$${"%,.2f".format(safeBuffer)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = if (safeBuffer >= 0) Color(0xFF059669) else MaterialTheme.colorScheme.error)
                                     }
                                 }
                             }
-                            
-                            Spacer(modifier = Modifier.height(12.dp))
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                        }
+                    }
+                    item { Text("BILLS DUE IN THIS PERIOD (${assignedBills.size})", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), modifier = Modifier.padding(top = 4.dp)) }
+                    if (assignedBills.isEmpty()) {
+                        item {
+                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))) {
+                                Text("No bills due between Day ${activeBucket.periodStartDay} and Day ${activeBucket.periodEndDay}.\nAll $${"%,.2f".format(activeBucket.incomeAmount)} is available for everyday spending!", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    } else {
+                        items(assignedBills) { item ->
+                            val spent = spentByItemId[item.id] ?: 0.0
+                            val isFunded = spent >= item.targetAmount - 0.001
+                            Card(
+                                modifier = Modifier.fillMaxWidth().clickable { onEditItem(item) },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                             ) {
-                                Text("Projected Balance", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(
-                                    text = "$${"%,.2f".format(runningBalance)}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (runningBalance < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-                                )
+                                Row(modifier = Modifier.padding(14.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)) {
+                                            Text("Day ${item.dueDay}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(item.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                            Text(if (isFunded) "✓ Paid / Funded" else "$${"%,.2f".format(spent)} of $${"%,.2f".format(item.targetAmount)}", style = MaterialTheme.typography.labelSmall, color = if (isFunded) Color(0xFF059669) else MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("$${"%,.2f".format(item.targetAmount)}", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        IconButton(
+                                            onClick = { onMarkPaid(item, item.targetAmount) },
+                                            colors = IconButtonDefaults.filledIconButtonColors(containerColor = if (isFunded) Color(0xFF059669).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
+                                        ) { Icon(Lucide.Check, null, tint = if (isFunded) Color(0xFF059669) else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+                                    }
+                                }
                             }
                         }
                     }
@@ -465,41 +439,60 @@ fun CalendarScreen(
     }
 }
 
-private data class CashFlowEvent(
-    val day: Int,
-    val name: String,
-    val amount: Double,
-    val isIncome: Boolean,
-    val originalItem: EnvelopeItem? = null
-)
+private fun calculatePayDaysForMonth(
+    type: String,
+    anchorDate: String,
+    fixedDays: String,
+    currentYearMonth: java.time.YearMonth
+): List<Int> {
+    return when (type) {
+        "WEEKLY", "BI_WEEKLY" -> {
+            if (anchorDate.isBlank()) emptyList()
+            else {
+                val anchor = LocalDate.parse(anchorDate)
+                val interval = if (type == "WEEKLY") 7L else 14L
+                val days = mutableListOf<Int>()
+                var current = anchor
+                val startOfMonth = currentYearMonth.atDay(1)
+                val endOfMonth = currentYearMonth.atEndOfMonth()
+                while (current.isAfter(endOfMonth)) current = current.minusDays(interval)
+                while (current.isBefore(startOfMonth)) current = current.plusDays(interval)
+                while (!current.isAfter(endOfMonth)) {
+                    if (!current.isBefore(startOfMonth)) { days.add(current.dayOfMonth) }
+                    current = current.plusDays(interval)
+                }
+                days
+            }
+        }
+        else -> {
+            fixedDays.split(",").filter { it.isNotBlank() }.mapNotNull { it.trim().toIntOrNull() }
+        }
+    }
+}
 
 private fun getCombinedStatusColor(items: List<EnvelopeItem>, spentMap: Map<String, Double>, today: LocalDate, currentDate: LocalDate): Color {
     val statuses = items.map { getItemStatusColor(it, spentMap[it.id] ?: 0.0, today, currentDate) }
     return when {
-        statuses.contains(Color(0xFFC62828)) -> Color(0xFFC62828) // Red if any are red
-        statuses.contains(Color(0xFFEF6C00)) -> Color(0xFFEF6C00) // Orange if any are orange
-        else -> Color(0xFF2E7D32) // Green if all are green
+        statuses.contains(Color(0xFFC62828)) -> Color(0xFFC62828)
+        statuses.contains(Color(0xFFEF6C00)) -> Color(0xFFEF6C00)
+        else -> Color(0xFF2E7D32)
     }
 }
 
 private fun getItemStatusColor(item: EnvelopeItem, spent: Double, today: LocalDate, currentDate: LocalDate): Color {
     val dueDay = item.dueDay ?: return Color.Gray
     val isFunded = spent >= item.targetAmount - 0.001
-    
-    if (isFunded) return Color(0xFF2E7D32) // Green
-
+    if (isFunded) return Color(0xFF2E7D32)
     val isCurrentMonth = today.year == currentDate.year && today.month == currentDate.month
     if (!isCurrentMonth) {
-        return if (currentDate.isBefore(today.withDayOfMonth(1))) Color(0xFFC62828) // Red if past month and unpaid
-        else Color.Gray // Future month
+        return if (currentDate.isBefore(today.withDayOfMonth(1))) Color(0xFFC62828) else Color.Gray
     }
-
     val daysUntil = dueDay - today.dayOfMonth
     return when {
-        daysUntil < 0 -> Color(0xFFC62828) // Red (Overdue)
-        daysUntil == 0 -> Color(0xFFC62828) // Red (Due Today)
-        daysUntil in 1..5 -> Color(0xFFEF6C00) // Orange (Due Soon)
-        else -> Color.Gray // Future
+        daysUntil < 0 -> Color(0xFFC62828)
+        daysUntil == 0 -> Color(0xFFC62828)
+        daysUntil in 1..5 -> Color(0xFFEF6C00)
+        else -> Color.Gray
     }
 }
 

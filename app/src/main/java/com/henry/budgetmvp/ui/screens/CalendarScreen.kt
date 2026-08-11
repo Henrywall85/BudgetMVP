@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.CategoryWithItems
@@ -38,9 +37,9 @@ fun CalendarScreen(
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onEditItem: (EnvelopeItem) -> Unit,
-    onMarkPaid: (EnvelopeItem, Double) -> Unit
+    onMarkPaid: (EnvelopeItem, Double) -> Unit,
 ) {
-    var calendarViewMode by remember { mutableStateOf(0) } // 0: Calendar Grid, 1: Paycheck Planner
+    var calendarViewMode by remember { mutableIntStateOf(0) } // 0: Calendar Grid, 1: Paycheck Planner
 
     val allItemsWithDueDates = remember(categoriesWithItems) {
         categoriesWithItems.flatMap { it.items }.filter { it.dueDay != null }
@@ -209,20 +208,66 @@ fun CalendarScreen(
                 else itemsByDueDay[selectedDay] ?: emptyList()
             }
 
+            // --- FILTER HEADER & SHOW ALL CHIP ---
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (selectedDay == null) {
+                        "ALL BILLS THIS MONTH (${allItemsWithDueDates.size})"
+                    } else {
+                        "BILLS ON ${currentDate.format(DateTimeFormatter.ofPattern("MMM"))} $selectedDay (${filteredTimelineItems.size})"
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f)
+                )
+
+                if (selectedDay != null) {
+                    AssistChip(
+                        onClick = { selectedDay = null },
+                        label = { Text("Show All", style = MaterialTheme.typography.labelSmall) },
+                        trailingIcon = {
+                            Icon(Lucide.X, contentDescription = "Clear Filter", modifier = Modifier.size(14.dp))
+                        },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                            labelColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                }
+            }
+
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 170.dp)
+                contentPadding = PaddingValues(top = 4.dp, bottom = 170.dp)
             ) {
                 if (filteredTimelineItems.isEmpty()) {
                     item {
-                        Text(
-                            text = if (selectedDay == null) "No bills due this month." else "No bills due on the ${selectedDay}th.",
-                            modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = if (selectedDay == null) "No bills due this month." else "No bills due on Day $selectedDay.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (selectedDay != null) {
+                                    TextButton(onClick = { selectedDay = null }) {
+                                        Text("View all bills for ${currentDate.format(DateTimeFormatter.ofPattern("MMMM"))}")
+                                    }
+                                }
+                            }
+                        }
                     }
                 } else {
                     items(filteredTimelineItems) { item ->
@@ -245,32 +290,32 @@ fun CalendarScreen(
                                     Column {
                                         Text(item.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
                                         Text(
-                                            text = "Due ${item.dueDay}${getOrdinalSuffix(item.dueDay ?: 0)}",
+                                            text = "Due Day ${item.dueDay}${getOrdinalSuffix(item.dueDay ?: 0)}",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
+
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text("$${"%,.2f".format(item.targetAmount)}", fontWeight = FontWeight.Black, style = MaterialTheme.typography.bodyLarge)
-                                        if (isFunded) {
-                                            Text("PAID", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
-                                        } else {
-                                            val left = item.targetAmount - spent
-                                            Text("$${"%,.2f".format(left)} LEFT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = urgencyColor)
-                                        }
-                                    }
-                                    if (!isFunded) {
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        IconButton(
-                                            onClick = { onMarkPaid(item, item.targetAmount - spent) },
-                                            modifier = Modifier
-                                                .size(32.dp)
-                                                .background(Color(0xFF059669).copy(alpha = 0.12f), CircleShape)
-                                        ) {
-                                            Icon(Lucide.Check, contentDescription = "Mark as Paid", tint = Color(0xFF059669), modifier = Modifier.size(16.dp))
-                                        }
+                                    Text(
+                                        text = "$${"%,.2f".format(item.targetAmount)}",
+                                        fontWeight = FontWeight.Black,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(
+                                        onClick = { onMarkPaid(item, item.targetAmount) },
+                                        colors = IconButtonDefaults.filledIconButtonColors(
+                                            containerColor = if (isFunded) Color(0xFF059669).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                    ) {
+                                        Icon(
+                                            Lucide.Check,
+                                            contentDescription = "Mark Paid",
+                                            tint = if (isFunded) Color(0xFF059669) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                     }
                                 }
                             }
@@ -443,7 +488,7 @@ private fun calculatePayDaysForMonth(
     type: String,
     anchorDate: String,
     fixedDays: String,
-    currentYearMonth: java.time.YearMonth
+    currentYearMonth: YearMonth
 ): List<Int> {
     return when (type) {
         "WEEKLY", "BI_WEEKLY" -> {

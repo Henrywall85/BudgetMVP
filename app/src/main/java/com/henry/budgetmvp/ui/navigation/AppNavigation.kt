@@ -656,6 +656,10 @@ fun AppNavigation(
                                                     } else {
                                                         collapsedCategories.add(categoryId)
                                                     }
+                                                },
+                                                onAddTransaction = {
+                                                    editingTransaction = null
+                                                    showTransactionEditSheet = true
                                                 }
                                             )
                                         }
@@ -682,21 +686,16 @@ fun AppNavigation(
                                         }
                                         3 -> {
                                             TransactionsScreen(
+                                                transactions = transactions,
                                                 categoriesWithItems = categoriesWithItems,
                                                 incomeStreams = streams,
-                                                onSaveTransaction = { type, amount, date, merchant, note, itemId, incomeStreamId ->
-                                                    val transaction = BudgetTransaction(
-                                                        userId = user?.uid ?: "",
-                                                        householdId = "",
-                                                        type = type,
-                                                        amount = amount,
-                                                        date = date,
-                                                        merchant = merchant,
-                                                        note = note,
-                                                        itemId = itemId,
-                                                        incomeStreamId = incomeStreamId
-                                                    )
-                                                    viewModel.saveTransaction(transaction)
+                                                onAddTransaction = {
+                                                    editingTransaction = null
+                                                    showTransactionEditSheet = true
+                                                },
+                                                onEditTransaction = { transaction ->
+                                                    editingTransaction = transaction
+                                                    showTransactionEditSheet = true
                                                 }
                                             )
                                         }
@@ -850,15 +849,29 @@ fun AppNavigation(
             )
         }
 
-        if (showTransactionEditSheet && editingTransaction != null) {
+        if (showTransactionEditSheet) {
             TransactionEntrySheet(
                 targetTransaction = editingTransaction,
                 categoriesWithItems = categoriesWithItems,
                 incomeStreams = streams,
-                onDismiss = { showTransactionEditSheet = false },
+                onDismiss = { 
+                    showTransactionEditSheet = false
+                    editingTransaction = null
+                },
                 onConfirm = { type, amount, date, merchant, note, itemId, incomeStreamId ->
-                    val transaction = editingTransaction!!.copy(
+                    val transaction = editingTransaction?.copy(
                         userId = user?.uid ?: "",
+                        type = type,
+                        amount = amount,
+                        date = date,
+                        merchant = merchant,
+                        note = note,
+                        itemId = itemId,
+                        incomeStreamId = incomeStreamId
+                    ) ?: BudgetTransaction(
+                        id = UUID.randomUUID().toString(),
+                        userId = user?.uid ?: "",
+                        householdId = userProfile?.householdId ?: "",
                         type = type,
                         amount = amount,
                         date = date,
@@ -869,10 +882,12 @@ fun AppNavigation(
                     )
                     viewModel.saveTransaction(transaction)
                     showTransactionEditSheet = false
+                    editingTransaction = null
                 },
                 onDelete = {
-                    viewModel.deleteTransaction(editingTransaction!!)
+                    editingTransaction?.let { viewModel.deleteTransaction(it) }
                     showTransactionEditSheet = false
+                    editingTransaction = null
                 }
             )
         }

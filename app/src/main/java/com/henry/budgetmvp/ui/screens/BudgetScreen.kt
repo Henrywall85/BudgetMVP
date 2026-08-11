@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -52,6 +53,7 @@ fun BudgetScreen(
     onAddItem: (String) -> Unit,
     onEditItem: (com.henry.budgetmvp.data.EnvelopeItem) -> Unit,
     onToggleCategory: (String) -> Unit,
+    onAddTransaction: () -> Unit = {}
 ) {
     var viewMode by remember { mutableStateOf(0) } // 0: Planned, 1: Spent, 2: Remaining
 
@@ -427,6 +429,19 @@ fun BudgetScreen(
                 modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
                 color = MaterialTheme.colorScheme.secondary
             )
+        }
+
+        FloatingActionButton(
+            onClick = onAddTransaction,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 180.dp, end = 20.dp),
+            containerColor = Color(0xFF059669),
+            contentColor = Color.White,
+            shape = CircleShape,
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
+        ) {
+            Icon(Lucide.Plus, contentDescription = "Add Transaction", modifier = Modifier.size(24.dp))
         }
     }
 }

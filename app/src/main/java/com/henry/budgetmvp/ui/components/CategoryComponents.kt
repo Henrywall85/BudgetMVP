@@ -1,12 +1,17 @@
 package com.henry.budgetmvp.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -14,17 +19,24 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.henry.budgetmvp.data.BudgetCategory
 import com.henry.budgetmvp.data.BudgetTransaction
@@ -32,7 +44,10 @@ import com.henry.budgetmvp.data.EnvelopeItem
 import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 @Composable
@@ -281,139 +296,574 @@ private fun getOrdinalSuffix(day: Int): String {
 fun ItemDetailSheet(
     item: EnvelopeItem,
     transactions: List<BudgetTransaction>,
+    unassignedFunds: Double,
     onDismiss: () -> Unit,
     onEditItem: () -> Unit,
-    onEditTransaction: (BudgetTransaction) -> Unit
+    onUpdateTargetAmount: (Double) -> Unit = {},
+    onDeleteItem: () -> Unit = {},
+    onEditTransaction: (BudgetTransaction) -> Unit,
+    onAddTransaction: () -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var targetAmountState by remember(item.targetAmount) { mutableDoubleStateOf(item.targetAmount) }
+    
     val spentAmount = transactions.sumOf { it.amount }
-    val goalAmount = item.targetAmount
-    val remaining = goalAmount - spentAmount
+    
+    // Inline Edit Mode State
+    var editMode by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    var textFieldValue by remember(targetAmountState) {
+        mutableStateOf(
+            TextFieldValue(
+                text = "%.2f".format(targetAmountState),
+                selection = TextRange(0, "%.2f".format(targetAmountState).length)
+            )
+        )
+    }
+
+    val remaining = targetAmountState - spentAmount
+    val isOverspent = remaining < -0.001
+
+    var isFavorite by remember { mutableStateOf(false) }
+
+    val dueDayText = remember(item.dueDay) {
+        item.dueDay?.let { day ->
+            val suffix = when {
+                day in 11..13 -> "th"
+                day % 10 == 1 -> "st"
+                day % 10 == 2 -> "nd"
+                day % 10 == 3 -> "rd"
+                else -> "th"
+            }
+            "Day $day$suffix, repeats monthly"
+        } ?: "No due date set"
+    }
+
+    // Real-time projected balance for the keyboard bar
+    val newAmountTyped = textFieldValue.text.toDoubleOrNull() ?: 0.0
+    val projectedUnassigned = unassignedFunds + (item.targetAmount - newAmountTyped)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        dragHandle = null,
+        containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = { WindowInsets(0) }
     ) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-            Column(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            Box(modifier = Modifier.fillMaxSize().imePadding()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 120.dp)
                 ) {
-                    Text(
-                        text = item.name,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    IconButton(onClick = onEditItem) {
-                        Icon(Lucide.EllipsisVertical, contentDescription = "Edit Item")
+                    // 1. Top Emerald Banner with Back Button
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(110.dp)
+                                .background(Color(0xFF059669))
+                                .statusBarsPadding()
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopStart)) {
+                                Icon(
+                                    imageVector = Lucide.ChevronLeft,
+                                    contentDescription = "Back",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    // 2. Overlapping Avatar & Hero Title / Remaining Balance
+                    item {
+                        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                            // Circular Overlapping Avatar
+                            Box(
+                                modifier = Modifier
+                                    .offset(y = (-32).dp)
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                                    .border(
+                                        BorderStroke(
+                                            3.dp,
+                                            if (isOverspent) Color(0xFFDC2626) else Color(0xFF059669)
+                                        ),
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Lucide.DollarSign,
+                                    contentDescription = null,
+                                    tint = if (isOverspent) Color(0xFFDC2626) else Color(0xFF059669),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
 
-                // Summary Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text("Planned", style = MaterialTheme.typography.labelSmall)
-                            Text("$${"%,.2f".format(goalAmount)}", fontWeight = FontWeight.Bold)
+                            // Title & Remaining Balance Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth().offset(y = (-16).dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.name,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Black,
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                editMode = true
+                                            }
+                                            .padding(vertical = 2.dp, horizontal = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "$${"%,.2f".format(spentAmount)} spent of ",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        
+                                        if (!editMode) {
+                                            Surface(
+                                                color = Color(0xFF0284C7).copy(alpha = 0.12f),
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "$${"%,.2f".format(targetAmountState)}",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.Black,
+                                                        color = Color(0xFF0284C7)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Icon(
+                                                        Lucide.Pencil,
+                                                        contentDescription = "Edit Amount",
+                                                        tint = Color(0xFF0284C7),
+                                                        modifier = Modifier.size(12.dp)
+                                                    )
+                                                }
+                                            }
+                                        } else {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("$", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Black, color = Color(0xFF0284C7))
+                                                BasicTextField(
+                                                    value = textFieldValue,
+                                                    onValueChange = { textFieldValue = it },
+                                                    modifier = Modifier
+                                                        .width(IntrinsicSize.Min)
+                                                        .focusRequester(focusRequester),
+                                                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontWeight = FontWeight.Black,
+                                                        color = Color(0xFF0284C7)
+                                                    ),
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                                                    keyboardActions = KeyboardActions(onDone = {
+                                                        val newAmount = textFieldValue.text.toDoubleOrNull() ?: targetAmountState
+                                                        targetAmountState = newAmount
+                                                        onUpdateTargetAmount(newAmount)
+                                                        editMode = false
+                                                    }),
+                                                    cursorBrush = SolidColor(Color(0xFF0284C7)),
+                                                    singleLine = true
+                                                )
+                                            }
+                                            LaunchedEffect(Unit) { focusRequester.requestFocus() }
+                                        }
+                                    }
+                                }
+
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = "Remaining",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "$${"%,.2f".format(remaining)}",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (isOverspent) Color(0xFFDC2626) else Color(0xFF059669)
+                                    )
+                                }
+                            }
                         }
-                        Column {
-                            Text("Spent", style = MaterialTheme.typography.labelSmall)
-                            Text("$${"%,.2f".format(spentAmount)}", fontWeight = FontWeight.Bold)
+                    }
+
+                    // 3. Settings Grouped Card
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        ) {
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                // Row 1: Planned Budget Amount
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            editMode = true
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Icon(Lucide.DollarSign, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(22.dp))
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Column {
+                                            Text("Planned Budget", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                            Text("$${"%,.2f".format(targetAmountState)}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF0284C7), fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                    Icon(Lucide.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                                // Row 2: Schedule
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onEditItem() }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Lucide.Repeat, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Text("Schedule", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                    }
+                                    Icon(Lucide.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                                // Row 3: Due Date
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onEditItem() }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Icon(Lucide.Calendar, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Column {
+                                            Text("Due Date", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                            Text(dueDayText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                    Icon(Lucide.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                                // Row 4: Fund
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Lucide.PiggyBank, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Text("Fund", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                    }
+                                    Icon(Lucide.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                                // Row 5: Favorite Switch
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Lucide.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Text("Favorite", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                    }
+                                    Switch(checked = isFavorite, onCheckedChange = { isFavorite = it })
+                                }
+                            }
                         }
-                        Column {
-                            Text("Left", style = MaterialTheme.typography.labelSmall)
+                    }
+
+                    // 4. Note Card
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable { onEditItem() },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        ) {
                             Text(
-                                "$${"%,.2f".format(if (kotlin.math.abs(remaining) < 0.001) 0.0 else remaining)}", 
-                                fontWeight = FontWeight.Bold,
-                                color = if (remaining < -0.001) Color(0xFFDC2626) else Color(0xFF059669)
+                                text = "Add a Note...",
+                                modifier = Modifier.padding(16.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(
-                    text = "TRANSACTION HISTORY",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (transactions.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    // 5. Activity This Month
+                    item {
+                        Spacer(modifier = Modifier.height(24.dp))
                         Text(
-                            "No transactions recorded yet.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            text = "Activity This Month",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
                         )
                     }
-                } else {
-                    transactions.forEach { transaction ->
-                        Row(
+
+                    if (transactions.isEmpty()) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                            ) {
+                                Text(
+                                    text = "No activity for this item this month.",
+                                    modifier = Modifier.padding(20.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        items(transactions) { tx ->
+                            val parsedDate = try { LocalDate.parse(tx.date) } catch (_: Exception) { LocalDate.now() }
+                            val monthStr = parsedDate.format(DateTimeFormatter.ofPattern("MMM"))
+                            val dayStr = parsedDate.format(DateTimeFormatter.ofPattern("d"))
+
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onEditTransaction(tx) }
+                                        .padding(vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(CircleShape)
+                                                .border(BorderStroke(1.2.dp, Color(0xFF94A3B8)), shape = CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(monthStr, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = Color(0xFF94A3B8))
+                                                Text(dayStr, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp), fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Text(
+                                            text = if (tx.merchant.isNotBlank()) tx.merchant else item.name,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    }
+
+                                    Text(
+                                        text = "-$${"%,.2f".format(tx.amount)}",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                            }
+                        }
+                        
+                        // "Planned This Month" virtual entry
+                        if (targetAmountState > 0) {
+                            item {
+                                val monthStr = try { LocalDate.now().format(DateTimeFormatter.ofPattern("MMM")) } catch (_: Exception) { "M" }
+                                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .clip(CircleShape)
+                                                    .border(BorderStroke(1.2.dp, Color(0xFF059669).copy(alpha = 0.5f)), shape = CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text(monthStr, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = Color(0xFF059669))
+                                                    Text("1", style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp), fontWeight = FontWeight.Bold, color = Color(0xFF059669))
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.width(14.dp))
+                                            Text(
+                                                text = "Planned This Month",
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = Color(0xFF059669)
+                                            )
+                                        }
+
+                                        Text(
+                                            text = "+$${"%,.2f".format(targetAmountState)}",
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = Color(0xFF059669)
+                                        )
+                                    }
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                                }
+                            }
+                        }
+                    }
+
+                    // 5. Delete Budget Item Button
+                    item {
+                        Spacer(modifier = Modifier.height(28.dp))
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onEditTransaction(transaction) }
-                                .padding(vertical = 12.dp),
+                                .padding(horizontal = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            TextButton(
+                                onClick = { showDeleteConfirmation = true },
+                                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFDC2626))
+                            ) {
+                                Text(
+                                    text = "Delete Budget Item",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFDC2626)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(40.dp))
+                    }
+                }
+
+                // 6. Floating Action Button (Quick Add for this item)
+                if (!editMode) {
+                    FloatingActionButton(
+                        onClick = onAddTransaction,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(24.dp),
+                        containerColor = Color(0xFF059669),
+                        contentColor = Color.White,
+                        shape = CircleShape
+                    ) {
+                        Icon(Lucide.Plus, contentDescription = "Add Transaction", modifier = Modifier.size(24.dp))
+                    }
+                }
+
+                // 7. KEYBOARD ACCESSORY BAR (Left to Budget)
+                if (editMode) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth(),
+                        color = Color.White,
+                        shadowElevation = 8.dp,
+                        tonalElevation = 2.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                .fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
                                 Text(
-                                    text = transaction.date,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = if (projectedUnassigned < -0.001) "OVER BUDGET" else "LEFT TO BUDGET",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (projectedUnassigned < -0.001) Color(0xFFDC2626) else Color(0xFF94A3B8)
                                 )
-                                if (transaction.merchant.isNotBlank()) {
-                                    Text(
-                                        text = transaction.merchant,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                } else {
-                                    Text(
-                                        text = "Transaction",
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                                if (transaction.note.isNotBlank()) {
-                                    Text(
-                                        text = transaction.note,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                Text(
+                                    text = "$${"%,.2f".format(projectedUnassigned)}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (projectedUnassigned < -0.001) Color(0xFFDC2626) else Color(0xFF059669)
+                                )
                             }
-                            Text(
-                                text = "$${"%,.2f".format(transaction.amount)}",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = if (transaction.type == TransactionType.INCOME) Color(0xFF059669) else MaterialTheme.colorScheme.onSurface
-                            )
+                            
+                            Button(
+                                onClick = {
+                                    val newAmount = textFieldValue.text.toDoubleOrNull() ?: targetAmountState
+                                    targetAmountState = newAmount
+                                    onUpdateTargetAmount(newAmount)
+                                    editMode = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Done", fontWeight = FontWeight.Bold)
+                            }
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
                     }
+                }
+
+                if (showDeleteConfirmation) {
+                    AlertDialog(
+                        onDismissRequest = { showDeleteConfirmation = false },
+                        title = { Text("Delete Budget Item", fontWeight = FontWeight.Bold) },
+                        text = { Text("Are you sure you want to delete '${item.name}'? This cannot be undone.") },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    showDeleteConfirmation = false
+                                    onDeleteItem()
+                                    onDismiss()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                            ) {
+                                Text("Delete", color = Color.White)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDeleteConfirmation = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -485,6 +935,7 @@ fun CategoryEntrySheet(
 fun EnvelopeItemEntrySheet(
     categoryId: String,
     targetItem: EnvelopeItem?,
+    currentDate: LocalDate = LocalDate.now(),
     onDismiss: () -> Unit,
     onConfirm: (String, Double, Int?) -> Unit,
     onDelete: () -> Unit
@@ -494,7 +945,18 @@ fun EnvelopeItemEntrySheet(
     var selectedDueDay by remember { mutableStateOf(targetItem?.dueDay) }
 
     var showDatePicker by remember { mutableStateOf(false) }
-    val datePickerState = rememberDatePickerState()
+    
+    val initialMillis = remember(currentDate, selectedDueDay) {
+        val day = (selectedDueDay ?: 1).coerceIn(1, currentDate.lengthOfMonth())
+        currentDate.withDayOfMonth(day)
+            .atStartOfDay(ZoneOffset.UTC)
+            .toInstant()
+            .toEpochMilli()
+    }
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = initialMillis,
+        initialDisplayedMonthMillis = initialMillis
+    )
 
     val focusManager = LocalFocusManager.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -505,6 +967,9 @@ fun EnvelopeItemEntrySheet(
             name.isNotBlank() && ((targetAmount.toDoubleOrNull() ?: 0.0) > 0)
         }
     }
+
+    val monthName = remember(currentDate) { currentDate.format(DateTimeFormatter.ofPattern("MMMM yyyy")) }
+    val monthShort = remember(currentDate) { currentDate.format(DateTimeFormatter.ofPattern("MMM")) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -517,7 +982,7 @@ fun EnvelopeItemEntrySheet(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = if (targetItem != null) "Edit Item" else "Add New Item",
+                    text = if (targetItem != null) "Edit Item ($monthShort)" else "Add New Item ($monthShort)",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -557,10 +1022,10 @@ fun EnvelopeItemEntrySheet(
                         .clickable { showDatePicker = true }
                 ) {
                     OutlinedTextField(
-                        value = selectedDueDay?.let { "Day $it" } ?: "",
+                        value = selectedDueDay?.let { "Day $it ($monthShort $it)" } ?: "",
                         onValueChange = { },
-                        label = { Text("Due Day of Month (Optional)") },
-                        placeholder = { Text("Select date", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
+                        label = { Text("Due Date in $monthName") },
+                        placeholder = { Text("Select due day", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                         readOnly = true,
                         enabled = false,
                         modifier = Modifier.fillMaxWidth(),
@@ -578,7 +1043,7 @@ fun EnvelopeItemEntrySheet(
                                 Icon(Lucide.Calendar, contentDescription = "Select or Change Due Date")
                             }
                         },
-                        supportingText = { Text("Tap to select the recurring due day") }
+                        supportingText = { Text("Recurring bill due day for $monthName") }
                     )
                 }
 
@@ -620,7 +1085,7 @@ fun EnvelopeItemEntrySheet(
                         val selectedMillis = datePickerState.selectedDateMillis
                         if (selectedMillis != null) {
                             val localDate = Instant.ofEpochMilli(selectedMillis)
-                                .atZone(ZoneId.of("UTC"))
+                                .atZone(ZoneOffset.UTC)
                                 .toLocalDate()
                             selectedDueDay = localDate.dayOfMonth
                         }

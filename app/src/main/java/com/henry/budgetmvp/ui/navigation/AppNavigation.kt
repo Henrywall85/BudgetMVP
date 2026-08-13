@@ -804,6 +804,7 @@ fun AppNavigation(
             EnvelopeItemEntrySheet(
                 categoryId = activeCategoryId ?: "",
                 targetItem = editingItem,
+                currentDate = currentDate,
                 onDismiss = { showItemSheet = false },
                 onConfirm = { name, target, dueDay ->
                     val itemToSave = editingItem?.copy(
@@ -834,6 +835,7 @@ fun AppNavigation(
             ItemDetailSheet(
                 item = selectedItemForDetail!!,
                 transactions = filteredTransactions.filter { it.itemId == selectedItemForDetail!!.id },
+                unassignedFunds = unassignedFunds,
                 onDismiss = { showItemDetailSheet = false },
                 onEditItem = {
                     editingItem = selectedItemForDetail
@@ -841,10 +843,26 @@ fun AppNavigation(
                     showItemSheet = true
                     showItemDetailSheet = false
                 },
+                onUpdateTargetAmount = { newAmount ->
+                    selectedItemForDetail?.let { item ->
+                        val updated = item.copy(targetAmount = newAmount)
+                        viewModel.saveEnvelopeItem(updated)
+                        selectedItemForDetail = updated
+                    }
+                },
+                onDeleteItem = {
+                    selectedItemForDetail?.let { item ->
+                        viewModel.deleteEnvelopeItem(item)
+                    }
+                },
                 onEditTransaction = { transaction ->
                     editingTransaction = transaction
                     showTransactionEditSheet = true
                     showItemDetailSheet = false
+                },
+                onAddTransaction = {
+                    editingTransaction = null
+                    showTransactionEditSheet = true
                 }
             )
         }

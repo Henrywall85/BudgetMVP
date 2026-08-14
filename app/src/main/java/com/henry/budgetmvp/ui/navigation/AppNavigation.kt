@@ -836,6 +836,7 @@ fun AppNavigation(
                 item = selectedItemForDetail!!,
                 transactions = filteredTransactions.filter { it.itemId == selectedItemForDetail!!.id },
                 unassignedFunds = unassignedFunds,
+                currentDate = currentDate,
                 onDismiss = { showItemDetailSheet = false },
                 onEditItem = {
                     editingItem = selectedItemForDetail
@@ -846,6 +847,13 @@ fun AppNavigation(
                 onUpdateTargetAmount = { newAmount ->
                     selectedItemForDetail?.let { item ->
                         val updated = item.copy(targetAmount = newAmount)
+                        viewModel.saveEnvelopeItem(updated)
+                        selectedItemForDetail = updated
+                    }
+                },
+                onUpdateDueDay = { newDay ->
+                    selectedItemForDetail?.let { item ->
+                        val updated = item.copy(dueDay = newDay)
                         viewModel.saveEnvelopeItem(updated)
                         selectedItemForDetail = updated
                     }

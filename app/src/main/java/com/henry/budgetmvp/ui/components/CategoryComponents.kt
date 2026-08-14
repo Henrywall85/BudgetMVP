@@ -1,6 +1,5 @@
 package com.henry.budgetmvp.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -293,13 +292,259 @@ private fun getOrdinalSuffix(day: Int): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun DueDateSheet(
+    initialDueDay: Int?,
+    currentDate: LocalDate = LocalDate.now(),
+    onDismiss: () -> Unit,
+    onSaveDueDay: (Int?) -> Unit,
+    onDeleteDueDate: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var selectedDueDay by remember { mutableIntStateOf(initialDueDay ?: 1) }
+    var repeatMonthly by remember { mutableStateOf(true) }
+    var remindMe by remember { mutableStateOf(false) }
+
+    var showCalendarPicker by remember { mutableStateOf(false) }
+
+    val initialMillis = remember(currentDate, selectedDueDay) {
+        val day = selectedDueDay.coerceIn(1, currentDate.lengthOfMonth())
+        currentDate.withDayOfMonth(day)
+            .atStartOfDay(ZoneOffset.UTC)
+            .toInstant()
+            .toEpochMilli()
+    }
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = initialMillis,
+        initialDisplayedMonthMillis = initialMillis
+    )
+
+    val suffix = when {
+        selectedDueDay in 11..13 -> "th"
+        selectedDueDay % 10 == 1 -> "st"
+        selectedDueDay % 10 == 2 -> "nd"
+        selectedDueDay % 10 == 3 -> "rd"
+        else -> "th"
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        dragHandle = null,
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = { WindowInsets(0) }
+    ) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Drag Handle
+                Box(
+                    modifier = Modifier
+                        .width(40.dp)
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Title & Close Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Spacer(modifier = Modifier.size(24.dp))
+                    Text(
+                        text = "Due Date",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                        Icon(Lucide.X, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Grouped Settings Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                        // Row 1: Date Picker Trigger
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showCalendarPicker = true }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Date",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "$selectedDueDay$suffix",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0284C7) // EveryDollar Blue
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Lucide.ChevronDown,
+                                    contentDescription = "Select Date",
+                                    tint = Color(0xFF0284C7),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                        // Row 2: Repeat Monthly
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Repeat Monthly",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Switch(
+                                checked = repeatMonthly,
+                                onCheckedChange = { repeatMonthly = it },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = Color(0xFF0F172A) // Dark Navy
+                                )
+                            )
+                        }
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                        // Row 3: Remind Me
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Remind Me",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "We'll notify you three days before it's due.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Switch(
+                                checked = remindMe,
+                                onCheckedChange = { remindMe = it }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Save Button
+                Button(
+                    onClick = {
+                        onSaveDueDay(selectedDueDay)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)) // Dark Navy
+                ) {
+                    Text(
+                        text = "Save",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Delete Due Date Button
+                TextButton(
+                    onClick = {
+                        onDeleteDueDate()
+                        onDismiss()
+                    }
+                ) {
+                    Text(
+                        text = "Delete Due Date",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFDC2626)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+
+    if (showCalendarPicker) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            DatePickerDialog(
+                onDismissRequest = { showCalendarPicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val selectedMillis = datePickerState.selectedDateMillis
+                        if (selectedMillis != null) {
+                            val localDate = Instant.ofEpochMilli(selectedMillis)
+                                .atZone(ZoneOffset.UTC)
+                                .toLocalDate()
+                            selectedDueDay = localDate.dayOfMonth
+                        }
+                        showCalendarPicker = false
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCalendarPicker = false }) { Text("Cancel") }
+                }
+            ) {
+                DatePicker(state = datePickerState)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun ItemDetailSheet(
     item: EnvelopeItem,
     transactions: List<BudgetTransaction>,
-    unassignedFunds: Double,
+    unassignedFunds: Double = 0.0,
+    currentDate: LocalDate = LocalDate.now(),
     onDismiss: () -> Unit,
     onEditItem: () -> Unit,
     onUpdateTargetAmount: (Double) -> Unit = {},
+    onUpdateDueDay: (Int?) -> Unit = {},
     onDeleteItem: () -> Unit = {},
     onEditTransaction: (BudgetTransaction) -> Unit,
     onAddTransaction: () -> Unit = {}
@@ -309,9 +554,11 @@ fun ItemDetailSheet(
     
     val spentAmount = transactions.sumOf { it.amount }
     
-    // Inline Edit Mode State
+    // Inline Edit Mode & Sheet States
     var editMode by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var showDueDateSheet by remember { mutableStateOf(false) }
+
     val focusRequester = remember { FocusRequester() }
     var textFieldValue by remember(targetAmountState) {
         mutableStateOf(
@@ -561,7 +808,7 @@ fun ItemDetailSheet(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { onEditItem() }
+                                        .clickable { showDueDateSheet = true }
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
@@ -839,6 +1086,20 @@ fun ItemDetailSheet(
                             }
                         }
                     }
+                }
+
+                if (showDueDateSheet) {
+                    DueDateSheet(
+                        initialDueDay = item.dueDay,
+                        currentDate = currentDate,
+                        onDismiss = { showDueDateSheet = false },
+                        onSaveDueDay = { newDay: Int? ->
+                            onUpdateDueDay(newDay)
+                        },
+                        onDeleteDueDate = {
+                            onUpdateDueDay(null)
+                        }
+                    )
                 }
 
                 if (showDeleteConfirmation) {

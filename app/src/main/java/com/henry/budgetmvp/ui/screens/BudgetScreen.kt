@@ -70,128 +70,128 @@ fun BudgetScreen(
         categoriesWithItems.sumOf { cat -> cat.items.sumOf { it.targetAmount } }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-            contentPadding = PaddingValues(bottom = 170.dp)
+    Column(modifier = Modifier.fillMaxSize()) {
+        // (1) FIXED COMPACT EMERALD BANNER (Matching Home Page)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF059669))
+                .statusBarsPadding()
+                .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 14.dp)
         ) {
-            // (1) COMPACT EMERALD BANNER (Matching Home Page)
-            item {
-                Column {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Color(0xFF059669),
-                                shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
-                            )
-                            .statusBarsPadding()
-                            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 18.dp)
-                    ) {
-                        Column {
-                            // Month Switcher Row
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(onClick = onPreviousMonth, modifier = Modifier.size(32.dp)) {
-                                    Icon(Lucide.ChevronLeft, contentDescription = "Prev", tint = Color.White, modifier = Modifier.size(20.dp))
-                                }
-                                Text(
-                                    text = currentDate.format(DateTimeFormatter.ofPattern("MMMM yyyy")).uppercase(),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White,
-                                    modifier = Modifier.clickable { onMonthClick() }
-                                )
-                                IconButton(onClick = onNextMonth, modifier = Modifier.size(32.dp)) {
-                                    Icon(Lucide.ChevronRight, contentDescription = "Next", tint = Color.White, modifier = Modifier.size(20.dp))
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Side-by-Side Stats
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(
-                                        text = "$${"%,.2f".format(unassignedFunds)}",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Black,
-                                        color = if (unassignedFunds < -0.001) Color(0xFFFFCDD2) else Color.White
-                                    )
-                                    Surface(
-                                        color = if (unassignedFunds < -0.001) Color(0xFFC62828) else Color.White.copy(alpha = 0.22f),
-                                        shape = RoundedCornerShape(6.dp)
-                                    ) {
-                                        Text(
-                                            text = when {
-                                                unassignedFunds < -0.001 -> "OVER BUDGET"
-                                                unassignedFunds > 0.001 -> "LEFT TO BUDGET"
-                                                else -> "✨ ALLOCATED ($0.00)"
-                                            },
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text("Income: $${"%,.0f".format(totalIncome)}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text("Planned: $${"%,.0f".format(totalPlanned)}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Slim 4dp Progress Bar
-                            val allocatedRatio = if (totalIncome > 0) (totalPlanned / totalIncome).toFloat().coerceIn(0f, 1f) else 0f
-                            LinearProgressIndicator(
-                                progress = { allocatedRatio },
-                                modifier = Modifier.fillMaxWidth().height(4.dp),
-                                color = if (unassignedFunds < -0.001) Color(0xFFFFCDD2) else Color.White,
-                                trackColor = Color.White.copy(alpha = 0.22f),
-                                strokeCap = StrokeCap.Round
-                            )
-                        }
+            Column {
+                // Month Switcher Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onPreviousMonth, modifier = Modifier.size(32.dp)) {
+                        Icon(Lucide.ChevronLeft, contentDescription = "Prev", tint = Color.White, modifier = Modifier.size(20.dp))
                     }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // (2) 3-WAY MODE SWITCHER (Planned | Spent | Remaining)
-                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            SegmentedButton(
-                                selected = viewMode == 0,
-                                onClick = { viewMode = 0 },
-                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
-                                label = { Text("Planned", style = MaterialTheme.typography.labelSmall) }
-                            )
-                            SegmentedButton(
-                                selected = viewMode == 1,
-                                onClick = { viewMode = 1 },
-                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
-                                label = { Text("Spent", style = MaterialTheme.typography.labelSmall) }
-                            )
-                            SegmentedButton(
-                                selected = viewMode == 2,
-                                onClick = { viewMode = 2 },
-                                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
-                                label = { Text("Remaining", style = MaterialTheme.typography.labelSmall) }
-                            )
-                        }
+                    Text(
+                        text = currentDate.format(DateTimeFormatter.ofPattern("MMMM yyyy")).uppercase(),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        modifier = Modifier.clickable { onMonthClick() }
+                    )
+                    IconButton(onClick = onNextMonth, modifier = Modifier.size(32.dp)) {
+                        Icon(Lucide.ChevronRight, contentDescription = "Next", tint = Color.White, modifier = Modifier.size(20.dp))
                     }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Side-by-Side Stats
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "$${"%,.2f".format(unassignedFunds)}",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                            color = if (unassignedFunds < -0.001) Color(0xFFFFCDD2) else Color.White
+                        )
+                        Surface(
+                            color = if (unassignedFunds < -0.001) Color(0xFFC62828) else Color.White.copy(alpha = 0.22f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = when {
+                                    unassignedFunds < -0.001 -> "OVER BUDGET"
+                                    unassignedFunds > 0.001 -> "LEFT TO BUDGET"
+                                    else -> "✨ ALLOCATED ($0.00)"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Income: $${"%,.0f".format(totalIncome)}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text("Planned: $${"%,.0f".format(totalPlanned)}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Slim 4dp Progress Bar
+                val allocatedRatio = if (totalIncome > 0) (totalPlanned / totalIncome).toFloat().coerceIn(0f, 1f) else 0f
+                LinearProgressIndicator(
+                    progress = { allocatedRatio },
+                    modifier = Modifier.fillMaxWidth().height(4.dp),
+                    color = if (unassignedFunds < -0.001) Color(0xFFFFCDD2) else Color.White,
+                    trackColor = Color.White.copy(alpha = 0.22f),
+                    strokeCap = StrokeCap.Round,
+                    drawStopIndicator = {},
+                    gapSize = 0.dp
+                )
             }
+        }
+
+        // (2) FIXED 3-WAY MODE SWITCHER (Planned | Spent | Remaining)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+        ) {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = viewMode == 0,
+                    onClick = { viewMode = 0 },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
+                    label = { Text("Planned", style = MaterialTheme.typography.labelSmall) }
+                )
+                SegmentedButton(
+                    selected = viewMode == 1,
+                    onClick = { viewMode = 1 },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
+                    label = { Text("Spent", style = MaterialTheme.typography.labelSmall) }
+                )
+                SegmentedButton(
+                    selected = viewMode == 2,
+                    onClick = { viewMode = 2 },
+                    shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+                    label = { Text("Remaining", style = MaterialTheme.typography.labelSmall) }
+                )
+            }
+        }
+
+        // (3) SCROLLABLE CONTENT AREA
+        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+                contentPadding = PaddingValues(bottom = 170.dp)
+            ) {
 
             // THE "CREATE BUDGET" SCREEN
             if (streams.isEmpty() && categoriesWithItems.isEmpty() && hasAnyBudgetData) {
@@ -444,4 +444,5 @@ fun BudgetScreen(
             Icon(Lucide.Plus, contentDescription = "Add Transaction", modifier = Modifier.size(24.dp))
         }
     }
+}
 }

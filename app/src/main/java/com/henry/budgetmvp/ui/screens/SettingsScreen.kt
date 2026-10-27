@@ -14,9 +14,11 @@ import com.composables.icons.lucide.*
 @Composable
 fun SettingsScreen(
     onNavigateToHousehold: () -> Unit,
-    onStartFromScratch: () -> Unit
+    onStartFromScratch: () -> Unit,
+    onClearAllTransactions: () -> Unit = {}
 ) {
     var showResetDialog by remember { mutableStateOf(false) }
+    var showClearTransactionsDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -88,6 +90,30 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedButton(
+                    onClick = { showClearTransactionsDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                ) {
+                    Icon(Lucide.Eraser, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("CLEAR ALL TRANSACTIONS", fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Delete all logged income and expense transactions for every month while keeping your budget categories and income sources intact.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedButton(
                     onClick = { showResetDialog = true },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = MaterialTheme.shapes.medium,
@@ -108,6 +134,30 @@ fun SettingsScreen(
                 )
             }
         }
+    }
+
+    if (showClearTransactionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearTransactionsDialog = false },
+            title = { Text("Clear All Transactions?") },
+            text = { Text("Are you sure you want to delete all transactions for every month? Your budget categories, items, and planned income sources will be preserved.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onClearAllTransactions()
+                        showClearTransactionsDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("YES, CLEAR ALL TRANSACTIONS")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearTransactionsDialog = false }) {
+                    Text("CANCEL")
+                }
+            }
+        )
     }
 
     if (showResetDialog) {

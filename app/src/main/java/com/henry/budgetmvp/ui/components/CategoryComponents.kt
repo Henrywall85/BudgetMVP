@@ -246,7 +246,9 @@ fun EnvelopeItemRow(
                 modifier = Modifier.fillMaxWidth().height(10.dp),
                 color = progressColor,
                 trackColor = Color(0xFFE5E7EB),
-                strokeCap = StrokeCap.Round
+                strokeCap = StrokeCap.Round,
+                drawStopIndicator = {},
+                gapSize = 0.dp
             )
             
             Row(

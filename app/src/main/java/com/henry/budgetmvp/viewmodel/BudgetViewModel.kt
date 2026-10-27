@@ -468,6 +468,22 @@ class BudgetViewModel @Inject constructor(
         }
     }
 
+    fun clearAllTransactions() {
+        val hid = _householdId.value ?: return
+        viewModelScope.launch {
+            _isSyncing.value = true
+            try {
+                val result = repository.clearAllTransactionsForHousehold(hid)
+                handleSyncResult(result, successMessage = "All transactions cleared for every month")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _statusMessage.emit(StatusMessage("Failed to clear transactions: ${e.message}", MessageType.ERROR))
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
     private suspend fun handleSyncResult(result: SyncResult, successMessage: String? = null) {
         when (result) {
             is SyncResult.Synced -> {

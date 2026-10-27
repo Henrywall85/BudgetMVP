@@ -150,4 +150,19 @@ class FirestoreSyncManager(private val db: FirebaseFirestore) {
             }
         }
     }
+
+    suspend fun clearAllTransactionsForHousehold(householdId: String) {
+        val snapshot = db.collection("transactions")
+            .whereEqualTo("householdId", householdId)
+            .get()
+            .await()
+
+        if (!snapshot.isEmpty) {
+            val batch = db.batch()
+            snapshot.documents.forEach { doc ->
+                batch.delete(doc.reference)
+            }
+            batch.commit().await()
+        }
+    }
 }

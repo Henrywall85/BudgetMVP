@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -32,17 +33,39 @@ fun TransactionsScreen(
     transactions: List<BudgetTransaction>,
     categoriesWithItems: List<CategoryWithItems>,
     incomeStreams: List<IncomeStream>,
+    currentDate: LocalDate = LocalDate.now(),
     onAddTransaction: () -> Unit,
-    onEditTransaction: (BudgetTransaction) -> Unit
+    onEditTransaction: (BudgetTransaction) -> Unit,
+    onClearAllTransactions: () -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var filterType by remember { mutableIntStateOf(0) } // 0: All, 1: Expenses, 2: Income
+    var selectedMonthFilter by remember(currentDate) { mutableStateOf<YearMonth?>(YearMonth.from(currentDate)) }
+    var showClearDialog by remember { mutableStateOf(false) }
 
     val allItems = remember(categoriesWithItems) { categoriesWithItems.flatMap { it.items }.associateBy { it.id } }
     val allStreams = remember(incomeStreams) { incomeStreams.associateBy { it.id } }
 
-    val filteredList = remember(transactions, searchQuery, filterType) {
+    val availableMonths = remember(transactions, currentDate) {
+        val currentYM = YearMonth.from(currentDate)
+        val set = mutableSetOf(currentYM)
+        transactions.forEach { tx ->
+            try {
+                set.add(YearMonth.from(LocalDate.parse(tx.date)))
+            } catch (ignored: Exception) {}
+        }
+        set.sortedDescending()
+    }
+
+    val filteredList = remember(transactions, searchQuery, filterType, selectedMonthFilter) {
         transactions.filter { tx ->
+            val matchesMonth = if (selectedMonthFilter == null) true else {
+                try {
+                    YearMonth.from(LocalDate.parse(tx.date)) == selectedMonthFilter
+                } catch (e: Exception) {
+                    false
+                }
+            }
             val matchesType = when (filterType) {
                 1 -> tx.type == TransactionType.EXPENSE
                 2 -> tx.type == TransactionType.INCOME
@@ -56,7 +79,7 @@ fun TransactionsScreen(
                 itemName.contains(searchQuery, ignoreCase = true) ||
                 streamName.contains(searchQuery, ignoreCase = true)
             }
-            matchesType && matchesSearch
+            matchesMonth && matchesType && matchesSearch
         }.sortedByDescending { it.date }
     }
 
@@ -84,14 +107,31 @@ fun TransactionsScreen(
                         .fillMaxWidth()
                         .background(Color(0xFF059669))
                         .statusBarsPadding()
-                        .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 18.dp)
+                        .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 14.dp)
                 ) {
-                    Text(
-                        text = "TRANSACTIONS",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black,
-                        color = Color.White
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "TRANSACTIONS",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White
+                        )
+
+                        if (transactions.isNotEmpty()) {
+                            IconButton(onClick = { showClearDialog = true }) {
+                                Icon(
+                                    imageVector = Lucide.Trash2,
+                                    contentDescription = "Clear All Transactions",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -120,8 +160,43 @@ fun TransactionsScreen(
                         shape = RoundedCornerShape(12.dp)
                     )
 
-                    val expenseCount = transactions.count { it.type == TransactionType.EXPENSE }
-                    val incomeCount = transactions.count { it.type == TransactionType.INCOME }
+                    // Month Selector Chips Row
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(availableMonths) { ym ->
+                            val isSelected = selectedMonthFilter == ym
+                            val monthLabel = ym.format(DateTimeFormatter.ofPattern("MMM yyyy"))
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedMonthFilter = ym },
+                                leadingIcon = {
+                                    Icon(
+                                        Lucide.Calendar,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                label = { Text(monthLabel, style = MaterialTheme.typography.labelSmall, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
+                            )
+                        }
+
+                        item {
+                            val isAllSelected = selectedMonthFilter == null
+                            FilterChip(
+                                selected = isAllSelected,
+                                onClick = { selectedMonthFilter = null },
+                                label = { Text("All History", style = MaterialTheme.typography.labelSmall, fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal) },
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
+                            )
+                        }
+                    }
+
+                    val expenseCount = filteredList.count { it.type == TransactionType.EXPENSE }
+                    val incomeCount = filteredList.count { it.type == TransactionType.INCOME }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -130,7 +205,7 @@ fun TransactionsScreen(
                         FilterChip(
                             selected = filterType == 0,
                             onClick = { filterType = 0 },
-                            label = { Text("All (${transactions.size})", style = MaterialTheme.typography.labelSmall) },
+                            label = { Text("All (${filteredList.size})", style = MaterialTheme.typography.labelSmall) },
                             colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
                         )
                         FilterChip(
@@ -324,5 +399,29 @@ fun TransactionsScreen(
         ) {
             Icon(Lucide.Plus, contentDescription = "Add Transaction", modifier = Modifier.size(24.dp))
         }
+    }
+
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("Clear All Transactions?") },
+            text = { Text("Are you sure you want to delete all transactions across every month? Your budget envelopes and income setup will remain intact.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onClearAllTransactions()
+                        showClearDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("YES, CLEAR TRANSACTIONS")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) {
+                    Text("CANCEL")
+                }
+            }
+        )
     }
 }

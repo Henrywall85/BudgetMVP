@@ -130,12 +130,9 @@ fun HomeScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Color(0xFF059669),
-                    shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
-                )
+                .background(Color(0xFF059669))
                 .statusBarsPadding()
-                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 48.dp)
+                .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 40.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -313,7 +310,9 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth().height(8.dp),
                         color = if (progress > 1f) MaterialTheme.colorScheme.error else Color(0xFF059669),
                         trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        strokeCap = StrokeCap.Round
+                        strokeCap = StrokeCap.Round,
+                        drawStopIndicator = {},
+                        gapSize = 0.dp
                     )
                     
                     Spacer(modifier = Modifier.height(8.dp))
@@ -535,7 +534,7 @@ fun HomeScreen(
                                             }
                                         }
                                         Spacer(modifier = Modifier.height(6.dp))
-                                        LinearProgressIndicator(progress = { pct }, modifier = Modifier.fillMaxWidth().height(4.dp), color = color, trackColor = color.copy(alpha = 0.1f), strokeCap = StrokeCap.Round)
+                                        LinearProgressIndicator(progress = { pct }, modifier = Modifier.fillMaxWidth().height(4.dp), color = color, trackColor = color.copy(alpha = 0.1f), strokeCap = StrokeCap.Round, drawStopIndicator = {}, gapSize = 0.dp)
                                     }
                                 }
                             }
@@ -618,7 +617,7 @@ private fun RuleMeter(label: String, actual: Float, target: Float, color: Color)
         Spacer(modifier = Modifier.height(8.dp))
         Box(modifier = Modifier.fillMaxWidth().height(12.dp)) {
             Box(modifier = Modifier.fillMaxWidth(target).fillMaxHeight().background(color.copy(alpha = 0.1f), shape = RoundedCornerShape(6.dp)))
-            LinearProgressIndicator(progress = { actual.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxSize(), color = color, trackColor = Color.Transparent, strokeCap = StrokeCap.Round)
+            LinearProgressIndicator(progress = { actual.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxSize(), color = color, trackColor = Color.Transparent, strokeCap = StrokeCap.Round, drawStopIndicator = {}, gapSize = 0.dp)
             Box(modifier = Modifier.fillMaxWidth(target).fillMaxHeight().padding(end = 1.dp).width(2.dp).background(color.copy(alpha = 0.5f)).align(Alignment.CenterStart))
         }
         Text(text = "Target: ${(target * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.padding(top = 4.dp))

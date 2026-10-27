@@ -221,6 +221,21 @@ class BudgetRepository @Inject constructor(
         }
     }
 
+    suspend fun clearAllTransactionsForHousehold(householdId: String): SyncResult {
+        return try {
+            dao.deleteTransactionsForHousehold(householdId)
+            if (!NetworkChecker.isNetworkAvailable(context)) return SyncResult.LocalOnly
+            try {
+                firestore.clearAllTransactionsForHousehold(householdId)
+                SyncResult.Synced
+            } catch (ignored: Exception) {
+                SyncResult.LocalOnly
+            }
+        } catch (e: Exception) {
+            SyncResult.Error(e.localizedMessage ?: "Local database error")
+        }
+    }
+
     suspend fun copyBudget(householdId: String, fromMonth: String, toMonth: String): SyncResult {
         return try {
             val income = dao.getIncomeStreamsSync(householdId, fromMonth)

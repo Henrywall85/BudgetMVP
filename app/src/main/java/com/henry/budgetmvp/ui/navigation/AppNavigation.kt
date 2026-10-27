@@ -496,6 +496,7 @@ fun AppNavigation(
                             }
                         )
                     },
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
                     containerColor = MaterialTheme.colorScheme.background
                 ) { padding ->
                     Box(
@@ -551,7 +552,8 @@ fun AppNavigation(
                                     onStartFromScratch = { 
                                         viewModel.resetAllHouseholdData()
                                         currentScreen = Screen.HOME
-                                    }
+                                    },
+                                    onClearAllTransactions = { viewModel.clearAllTransactions() }
                                 )
                             }
                             Screen.HOME, Screen.BUDGET, Screen.CALENDAR, Screen.TRANSACTIONS -> {
@@ -689,6 +691,7 @@ fun AppNavigation(
                                                 transactions = transactions,
                                                 categoriesWithItems = categoriesWithItems,
                                                 incomeStreams = streams,
+                                                currentDate = currentDate,
                                                 onAddTransaction = {
                                                     editingTransaction = null
                                                     showTransactionEditSheet = true
@@ -696,7 +699,8 @@ fun AppNavigation(
                                                 onEditTransaction = { transaction ->
                                                     editingTransaction = transaction
                                                     showTransactionEditSheet = true
-                                                }
+                                                },
+                                                onClearAllTransactions = { viewModel.clearAllTransactions() }
                                             )
                                         }
                                     }

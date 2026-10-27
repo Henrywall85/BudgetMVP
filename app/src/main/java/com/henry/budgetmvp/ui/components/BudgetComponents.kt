@@ -169,7 +169,8 @@ fun IncomeDetailsCard(
                     modifier = Modifier.fillMaxWidth().height(8.dp),
                     color = Color(0xFF2E7D32), // Consistency with Success Green
                     trackColor = Color(0xFFE5E7EB),
-                    strokeCap = StrokeCap.Round
+                    strokeCap = StrokeCap.Round,
+                    drawStopIndicator = {}
                 )
             }
 

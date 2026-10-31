@@ -54,6 +54,18 @@ interface BudgetDao {
     @Delete
     suspend fun deleteTransaction(transaction: BudgetTransaction)
 
+    @Query("SELECT * FROM multi_income_table")
+    suspend fun getAllLocalIncomeStreamsRaw(): List<IncomeStream>
+
+    @Query("SELECT * FROM budget_category_table")
+    suspend fun getAllLocalCategoriesRaw(): List<BudgetCategory>
+
+    @Query("SELECT * FROM envelope_item_table")
+    suspend fun getAllLocalEnvelopeItemsRaw(): List<EnvelopeItem>
+
+    @Query("SELECT * FROM transaction_table")
+    suspend fun getAllLocalTransactionsRaw(): List<BudgetTransaction>
+
     @Query("DELETE FROM multi_income_table WHERE householdId = :householdId")
     suspend fun deleteIncomeStreamsForHousehold(householdId: String)
 

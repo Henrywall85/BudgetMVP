@@ -215,8 +215,13 @@ class BudgetViewModel @Inject constructor(
         val uid = _userId.value ?: return
         _isSyncing.value = true
         try {
-            val data = repository.fetchAllDataFromCloud(householdId, uid)
             val currentMonth = _selectedMonthYear.value ?: LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
+            
+            // Step 1: Push any local-only data to Firestore first
+            repository.pushLocalDataToCloud(householdId, uid, currentMonth)
+
+            // Step 2: Fetch unified dataset from Firestore
+            val data = repository.fetchAllDataFromCloud(householdId, uid)
             
             @Suppress("UNCHECKED_CAST")
             val incomeList = (data["income"] as? List<IncomeStream>)?.map { stream ->

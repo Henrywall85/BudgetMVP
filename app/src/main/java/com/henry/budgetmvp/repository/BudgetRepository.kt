@@ -66,6 +66,58 @@ class BudgetRepository @Inject constructor(
         dao.syncAllData(income, categories, items, transactions)
     }
 
+    suspend fun pushLocalDataToCloud(householdId: String, userId: String, currentMonth: String) {
+        if (!NetworkChecker.isNetworkAvailable(context)) return
+
+        try {
+            val localIncome = dao.getAllLocalIncomeStreamsRaw()
+            val localCategories = dao.getAllLocalCategoriesRaw()
+            val localItems = dao.getAllLocalEnvelopeItemsRaw()
+            val localTransactions = dao.getAllLocalTransactionsRaw()
+
+            localIncome.forEach { stream ->
+                val updated = stream.copy(
+                    householdId = stream.householdId.ifEmpty { householdId },
+                    userId = stream.userId.ifEmpty { userId },
+                    monthYear = stream.monthYear.ifEmpty { currentMonth }
+                )
+                dao.upsertIncomeStream(updated)
+                try { firestore.saveIncomeStream(updated) } catch (ignored: Exception) {}
+            }
+
+            localCategories.forEach { cat ->
+                val updated = cat.copy(
+                    householdId = cat.householdId.ifEmpty { householdId },
+                    userId = cat.userId.ifEmpty { userId },
+                    monthYear = cat.monthYear.ifEmpty { currentMonth }
+                )
+                dao.upsertCategory(updated)
+                try { firestore.saveCategory(updated) } catch (ignored: Exception) {}
+            }
+
+            localItems.forEach { item ->
+                val updated = item.copy(
+                    householdId = item.householdId.ifEmpty { householdId },
+                    userId = item.userId.ifEmpty { userId },
+                    monthYear = item.monthYear.ifEmpty { currentMonth }
+                )
+                dao.upsertEnvelopeItem(updated)
+                try { firestore.saveEnvelopeItem(updated) } catch (ignored: Exception) {}
+            }
+
+            localTransactions.forEach { tx ->
+                val updated = tx.copy(
+                    householdId = tx.householdId.ifEmpty { householdId },
+                    userId = tx.userId.ifEmpty { userId }
+                )
+                dao.upsertTransaction(updated)
+                try { firestore.saveTransaction(updated) } catch (ignored: Exception) {}
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     // --- CRUD: Income Streams ---
     fun getAllIncomeStreams(householdId: String, monthYear: String): Flow<List<IncomeStream>> {
         return dao.getAllIncomeStreams(householdId, monthYear)

@@ -611,17 +611,29 @@ fun ItemDetailSheet(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(110.dp)
+                                .height(115.dp)
                                 .background(Color(0xFF059669))
                                 .statusBarsPadding()
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp)
                         ) {
-                            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopStart)) {
-                                Icon(
-                                    imageVector = Lucide.ChevronLeft,
-                                    contentDescription = "Back",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(28.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+                                    Icon(
+                                        imageVector = Lucide.ChevronLeft,
+                                        contentDescription = "Back",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "BUDGET ITEM",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White.copy(alpha = 0.85f)
                                 )
                             }
                         }
@@ -633,7 +645,7 @@ fun ItemDetailSheet(
                             // Circular Overlapping Avatar
                             Box(
                                 modifier = Modifier
-                                    .offset(y = (-32).dp)
+                                    .offset(y = (-28).dp)
                                     .size(64.dp)
                                     .clip(CircleShape)
                                     .background(Color.White)

@@ -557,7 +557,8 @@ fun AppNavigation(
                                         viewModel.resetAllHouseholdData()
                                         currentScreen = Screen.HOME
                                     },
-                                    onClearAllTransactions = { viewModel.clearAllTransactions() }
+                                    onClearAllTransactions = { viewModel.clearAllTransactions() },
+                                    onManualSync = { viewModel.manualSync() }
                                 )
                             }
                             Screen.HOME, Screen.BUDGET, Screen.CALENDAR, Screen.TRANSACTIONS -> {

@@ -15,7 +15,8 @@ import com.composables.icons.lucide.*
 fun SettingsScreen(
     onNavigateToHousehold: () -> Unit,
     onStartFromScratch: () -> Unit,
-    onClearAllTransactions: () -> Unit = {}
+    onClearAllTransactions: () -> Unit = {},
+    onManualSync: () -> Unit = {}
 ) {
     var showResetDialog by remember { mutableStateOf(false) }
     var showClearTransactionsDialog by remember { mutableStateOf(false) }
@@ -87,6 +88,29 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                 )
                 
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = onManualSync,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Icon(Lucide.RefreshCw, contentDescription = null)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("SYNC WITH CLOUD NOW", fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Pull the latest changes from Firebase and automatically merge data across all your synced devices.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedButton(

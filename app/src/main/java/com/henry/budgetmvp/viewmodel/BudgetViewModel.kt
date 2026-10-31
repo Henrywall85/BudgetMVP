@@ -215,13 +215,8 @@ class BudgetViewModel @Inject constructor(
         val uid = _userId.value ?: return
         _isSyncing.value = true
         try {
-            val currentMonth = _selectedMonthYear.value ?: LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
-            
-            // Step 1: Push any local-only data to Firestore first
-            repository.pushLocalDataToCloud(householdId, uid, currentMonth)
-
-            // Step 2: Fetch unified dataset from Firestore
             val data = repository.fetchAllDataFromCloud(householdId, uid)
+            val currentMonth = _selectedMonthYear.value ?: LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
             
             @Suppress("UNCHECKED_CAST")
             val incomeList = (data["income"] as? List<IncomeStream>)?.map { stream ->
@@ -252,10 +247,11 @@ class BudgetViewModel @Inject constructor(
                 tx.copy(householdId = householdId)
             } ?: emptyList()
 
-            repository.syncAllLocalData(incomeList, categoriesList, itemsList, transactionsList)
+            // Overwrite local phone database with exact Firebase dataset
+            repository.replaceLocalDataWithCloudData(householdId, incomeList, categoriesList, itemsList, transactionsList)
             
             if (isManual) {
-                _statusMessage.emit(StatusMessage("Successfully restored ${categoriesList.size} categories and ${transactionsList.size} transactions!", MessageType.SUCCESS))
+                _statusMessage.emit(StatusMessage("Cloud sync complete — phone view updated to match Firebase!", MessageType.SUCCESS))
             }
         } catch (e: TimeoutCancellationException) {
             Log.e("BudgetSync", "Cloud sync timed out", e)

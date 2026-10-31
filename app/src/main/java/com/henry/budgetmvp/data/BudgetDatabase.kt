@@ -90,6 +90,18 @@ interface BudgetDao {
     }
 
     @Transaction
+    suspend fun replaceLocalDataWithCloudData(
+        householdId: String,
+        income: List<IncomeStream>,
+        categories: List<BudgetCategory>,
+        items: List<EnvelopeItem>,
+        transactions: List<BudgetTransaction>
+    ) {
+        clearHouseholdData(householdId)
+        syncAllData(income, categories, items, transactions)
+    }
+
+    @Transaction
     suspend fun syncAllData(
         income: List<IncomeStream>,
         categories: List<BudgetCategory>,

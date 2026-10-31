@@ -66,6 +66,16 @@ class BudgetRepository @Inject constructor(
         dao.syncAllData(income, categories, items, transactions)
     }
 
+    suspend fun replaceLocalDataWithCloudData(
+        householdId: String,
+        income: List<IncomeStream>,
+        categories: List<BudgetCategory>,
+        items: List<EnvelopeItem>,
+        transactions: List<BudgetTransaction>
+    ) {
+        dao.replaceLocalDataWithCloudData(householdId, income, categories, items, transactions)
+    }
+
     suspend fun pushLocalDataToCloud(householdId: String, userId: String, currentMonth: String) {
         if (!NetworkChecker.isNetworkAvailable(context)) return
 

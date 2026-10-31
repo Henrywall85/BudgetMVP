@@ -459,10 +459,11 @@ class BudgetViewModel @Inject constructor(
 
     fun resetAllHouseholdData() {
         val hid = _householdId.value ?: return
+        val uid = _userId.value ?: ""
         viewModelScope.launch {
             _isSyncing.value = true
             try {
-                val result = repository.clearHouseholdData(hid)
+                val result = repository.clearHouseholdData(hid, uid)
                 handleSyncResult(result, successMessage = "Budget data reset successfully")
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -475,10 +476,11 @@ class BudgetViewModel @Inject constructor(
 
     fun clearAllTransactions() {
         val hid = _householdId.value ?: return
+        val uid = _userId.value ?: ""
         viewModelScope.launch {
             _isSyncing.value = true
             try {
-                val result = repository.clearAllTransactionsForHousehold(hid)
+                val result = repository.clearAllTransactionsForHousehold(hid, uid)
                 handleSyncResult(result, successMessage = "All transactions cleared for every month")
             } catch (e: Exception) {
                 e.printStackTrace()

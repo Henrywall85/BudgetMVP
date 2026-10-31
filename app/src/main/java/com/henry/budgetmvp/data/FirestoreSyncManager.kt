@@ -165,18 +165,27 @@ class FirestoreSyncManager(private val db: FirebaseFirestore) {
         db.collection("transactions").document(id).delete().await()
     }
 
-    suspend fun clearHouseholdData(householdId: String) {
+    suspend fun clearHouseholdData(householdId: String, userId: String = "") {
         val collections = listOf("incomeStreams", "categories", "envelopeItems", "transactions")
         
         collections.forEach { collectionName ->
-            val snapshot = db.collection(collectionName)
+            val hSnapshot = db.collection(collectionName)
                 .whereEqualTo("householdId", householdId)
                 .get()
                 .await()
-            
-            if (!snapshot.isEmpty) {
+
+            val uSnapshot = if (userId.isNotBlank() && userId != householdId) {
+                db.collection(collectionName)
+                    .whereEqualTo("userId", userId)
+                    .get()
+                    .await()
+            } else null
+
+            val allDocs = (hSnapshot.documents + (uSnapshot?.documents ?: emptyList())).distinctBy { it.id }
+
+            if (allDocs.isNotEmpty()) {
                 val batch = db.batch()
-                snapshot.documents.forEach { doc ->
+                allDocs.forEach { doc ->
                     batch.delete(doc.reference)
                 }
                 batch.commit().await()
@@ -184,15 +193,24 @@ class FirestoreSyncManager(private val db: FirebaseFirestore) {
         }
     }
 
-    suspend fun clearAllTransactionsForHousehold(householdId: String) {
-        val snapshot = db.collection("transactions")
+    suspend fun clearAllTransactionsForHousehold(householdId: String, userId: String = "") {
+        val hSnapshot = db.collection("transactions")
             .whereEqualTo("householdId", householdId)
             .get()
             .await()
 
-        if (!snapshot.isEmpty) {
+        val uSnapshot = if (userId.isNotBlank() && userId != householdId) {
+            db.collection("transactions")
+                .whereEqualTo("userId", userId)
+                .get()
+                .await()
+        } else null
+
+        val allDocs = (hSnapshot.documents + (uSnapshot?.documents ?: emptyList())).distinctBy { it.id }
+
+        if (allDocs.isNotEmpty()) {
             val batch = db.batch()
-            snapshot.documents.forEach { doc ->
+            allDocs.forEach { doc ->
                 batch.delete(doc.reference)
             }
             batch.commit().await()

@@ -258,12 +258,12 @@ class BudgetRepository @Inject constructor(
         return dao.hasAnyBudgetData(householdId)
     }
 
-    suspend fun clearHouseholdData(householdId: String): SyncResult {
+    suspend fun clearHouseholdData(householdId: String, userId: String = ""): SyncResult {
         return try {
             dao.clearHouseholdData(householdId)
             if (!NetworkChecker.isNetworkAvailable(context)) return SyncResult.LocalOnly
             try {
-                firestore.clearHouseholdData(householdId)
+                firestore.clearHouseholdData(householdId, userId)
                 SyncResult.Synced
             } catch (ignored: Exception) {
                 SyncResult.LocalOnly
@@ -273,12 +273,12 @@ class BudgetRepository @Inject constructor(
         }
     }
 
-    suspend fun clearAllTransactionsForHousehold(householdId: String): SyncResult {
+    suspend fun clearAllTransactionsForHousehold(householdId: String, userId: String = ""): SyncResult {
         return try {
             dao.deleteTransactionsForHousehold(householdId)
             if (!NetworkChecker.isNetworkAvailable(context)) return SyncResult.LocalOnly
             try {
-                firestore.clearAllTransactionsForHousehold(householdId)
+                firestore.clearAllTransactionsForHousehold(householdId, userId)
                 SyncResult.Synced
             } catch (ignored: Exception) {
                 SyncResult.LocalOnly

@@ -22,6 +22,7 @@ import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.CategoryWithItems
 import com.henry.budgetmvp.data.EnvelopeItem
 import com.henry.budgetmvp.data.TransactionType
+import com.henry.budgetmvp.util.calculatePayDaysForMonth
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -609,36 +610,7 @@ fun CalendarScreen(
     }
 }
 
-private fun calculatePayDaysForMonth(
-    type: String,
-    anchorDate: String,
-    fixedDays: String,
-    currentYearMonth: YearMonth
-): List<Int> {
-    return when (type) {
-        "WEEKLY", "BI_WEEKLY" -> {
-            if (anchorDate.isBlank()) emptyList()
-            else {
-                val anchor = LocalDate.parse(anchorDate)
-                val interval = if (type == "WEEKLY") 7L else 14L
-                val days = mutableListOf<Int>()
-                var current = anchor
-                val startOfMonth = currentYearMonth.atDay(1)
-                val endOfMonth = currentYearMonth.atEndOfMonth()
-                while (current.isAfter(endOfMonth)) current = current.minusDays(interval)
-                while (current.isBefore(startOfMonth)) current = current.plusDays(interval)
-                while (!current.isAfter(endOfMonth)) {
-                    if (!current.isBefore(startOfMonth)) { days.add(current.dayOfMonth) }
-                    current = current.plusDays(interval)
-                }
-                days
-            }
-        }
-        else -> {
-            fixedDays.split(",").filter { it.isNotBlank() }.mapNotNull { it.trim().toIntOrNull() }
-        }
-    }
-}
+
 
 private fun getCombinedStatusColor(items: List<EnvelopeItem>, spentMap: Map<String, Double>, today: LocalDate, currentDate: LocalDate): Color {
     val statuses = items.map { getItemStatusColor(it, spentMap[it.id] ?: 0.0, today, currentDate) }

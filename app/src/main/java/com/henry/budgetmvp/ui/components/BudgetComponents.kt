@@ -33,6 +33,9 @@ import com.composables.icons.lucide.*
 import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.IncomeStream
 import com.henry.budgetmvp.data.TransactionType
+import com.henry.budgetmvp.util.getPayDaysCountForMonth
+import com.henry.budgetmvp.util.getMonthlyGoalForMonth
+import java.time.YearMonth
 import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
 import com.henry.budgetmvp.util.formatIsoDate
 import java.time.Instant
@@ -121,8 +124,13 @@ fun TotalPoolCard(
 fun IncomeDetailsCard(
     stream: IncomeStream,
     receivedAmount: Double,
+    currentDate: LocalDate = LocalDate.now(),
     onClick: () -> Unit
 ) {
+    val yearMonth = remember(currentDate) { YearMonth.from(currentDate) }
+    val payDaysCount = remember(stream, yearMonth) { stream.getPayDaysCountForMonth(yearMonth) }
+    val monthlyGoal = remember(stream, yearMonth) { stream.getMonthlyGoalForMonth(yearMonth) }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -146,7 +154,7 @@ fun IncomeDetailsCard(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
                 ) {
                     Text(
-                        text = "Monthly Income",
+                        text = "$payDaysCount Check${if (payDaysCount > 1) "s" else ""}",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -155,10 +163,10 @@ fun IncomeDetailsCard(
                 }
             }
             
-            if (stream.monthlyAmount > 0) {
+            if (monthlyGoal > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 // Progress Section
-                val progress = (receivedAmount / stream.monthlyAmount).toFloat().coerceIn(0f, 1f)
+                val progress = (receivedAmount / monthlyGoal).toFloat().coerceIn(0f, 1f)
                 val animatedProgress by animateFloatAsState(
                     targetValue = progress,
                     label = "income_progress"
@@ -183,7 +191,7 @@ fun IncomeDetailsCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = if (stream.monthlyAmount > 0) "Goal: $${"%,.2f".format(stream.monthlyAmount)}" else "No Monthly Goal",
+                        text = if (monthlyGoal > 0) "Goal: $${"%,.2f".format(monthlyGoal)} ($${"%,.0f".format(stream.monthlyAmount)}/check)" else "No Monthly Goal",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -400,7 +408,7 @@ fun IncomeEntrySheet(
                     onValueChange = { input ->
                         if (input.count { it.toString() == "." } <= 1 && input.all { it.isDigit() || it.toString() == "." }) { amount = input }
                     },
-                    label = { Text("Planned Monthly Amount") },
+                    label = { Text("Paycheck Goal (Amount Per Check)") },
                     placeholder = { Text("$0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
@@ -460,6 +468,60 @@ fun IncomeEntrySheet(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                 modifier = Modifier.size(20.dp)
                             )
+                        }
+                    }
+
+                    val typedAmount = amount.toDoubleOrNull() ?: 0.0
+                    val previewYM = remember { YearMonth.now() }
+                    val tempStream = remember(typedAmount, payScheduleType, anchorDate, selectedPayDays) {
+                        IncomeStream(
+                            monthlyAmount = typedAmount,
+                            payScheduleType = payScheduleType,
+                            anchorDate = anchorDate,
+                            payDays = selectedPayDays.sorted().joinToString(",")
+                        )
+                    }
+                    val previewPayDaysCount = remember(tempStream, previewYM) { tempStream.getPayDaysCountForMonth(previewYM) }
+                    val previewMonthlyTotal = remember(tempStream, previewYM) { tempStream.getMonthlyGoalForMonth(previewYM) }
+
+                    if (typedAmount > 0) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Total Monthly Goal (${previewYM.format(DateTimeFormatter.ofPattern("MMM yyyy"))})",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "$${"%,.2f".format(previewMonthlyTotal)}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Black,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(
+                                        text = "$previewPayDaysCount check${if (previewPayDaysCount > 1) "s" else ""} @ $${"%,.0f".format(typedAmount)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }

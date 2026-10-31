@@ -27,7 +27,9 @@ import com.henry.budgetmvp.data.IncomeStream
 import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.ui.components.*
+import com.henry.budgetmvp.util.getMonthlyGoalForMonth
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -64,8 +66,9 @@ fun BudgetScreen(
             .mapValues { (_, txs) -> txs.sumOf { it.amount } }
     }
     val todayDay = remember { LocalDate.now().dayOfMonth }
+    val yearMonth = remember(currentDate) { YearMonth.from(currentDate) }
     
-    val totalIncome = remember(streams) { streams.sumOf { it.monthlyAmount } }
+    val totalIncome = remember(streams, yearMonth) { streams.sumOf { it.getMonthlyGoalForMonth(yearMonth) } }
     val totalPlanned = remember(categoriesWithItems) {
         categoriesWithItems.sumOf { cat -> cat.items.sumOf { it.targetAmount } }
     }
@@ -272,6 +275,7 @@ fun BudgetScreen(
                                         IncomeDetailsCard(
                                             stream = stream,
                                             receivedAmount = receivedAmount,
+                                            currentDate = currentDate,
                                             onClick = { onEditIncome(stream) }
                                         )
                                         if (index < streams.lastIndex) {

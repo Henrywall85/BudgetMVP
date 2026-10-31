@@ -82,3 +82,54 @@ fun formatIsoDate(isoDate: String): String {
         isoDate
     }
 }
+
+fun calculatePayDaysForMonth(
+    type: String,
+    anchorDate: String,
+    fixedDays: String,
+    currentYearMonth: java.time.YearMonth
+): List<Int> {
+    return when (type) {
+        "WEEKLY", "BI_WEEKLY" -> {
+            if (anchorDate.isBlank()) emptyList()
+            else {
+                try {
+                    val anchor = LocalDate.parse(anchorDate)
+                    val interval = if (type == "WEEKLY") 7L else 14L
+                    val days = mutableListOf<Int>()
+                    var current = anchor
+                    val startOfMonth = currentYearMonth.atDay(1)
+                    val endOfMonth = currentYearMonth.atEndOfMonth()
+                    while (current.isAfter(endOfMonth)) current = current.minusDays(interval)
+                    while (current.isBefore(startOfMonth)) current = current.plusDays(interval)
+                    while (!current.isAfter(endOfMonth)) {
+                        if (!current.isBefore(startOfMonth)) { days.add(current.dayOfMonth) }
+                        current = current.plusDays(interval)
+                    }
+                    days
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            }
+        }
+        else -> {
+            fixedDays.split(",").filter { it.isNotBlank() }.mapNotNull { it.trim().toIntOrNull() }
+        }
+    }
+}
+
+fun com.henry.budgetmvp.data.IncomeStream.getPayDaysCountForMonth(yearMonth: java.time.YearMonth): Int {
+    val days = calculatePayDaysForMonth(payScheduleType, anchorDate, payDays, yearMonth)
+    return if (days.isNotEmpty()) days.size else when (payScheduleType) {
+        "WEEKLY" -> 4
+        "BI_WEEKLY" -> 2
+        "TWICE_MONTHLY" -> 2
+        "MONTHLY" -> 1
+        else -> payDays.split(",").filter { it.isNotBlank() }.size.coerceAtLeast(1)
+    }
+}
+
+fun com.henry.budgetmvp.data.IncomeStream.getMonthlyGoalForMonth(yearMonth: java.time.YearMonth): Double {
+    val count = getPayDaysCountForMonth(yearMonth)
+    return monthlyAmount * count
+}

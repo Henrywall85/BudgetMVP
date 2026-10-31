@@ -98,12 +98,12 @@ class BudgetViewModel @Inject constructor(
                 
                 refreshHouseholdData(profile.householdId)
                 refreshPendingInvites(profile.email)
-                syncFromCloud(profile.householdId, isManual = false)
+                startRealtimeCloudSync(profile.householdId)
             } catch (e: Exception) {
                 e.printStackTrace()
                 _householdId.value = userId
                 _statusMessage.emit(StatusMessage("Profile load error. Working offline.", MessageType.ERROR))
-                syncFromCloud(userId, isManual = false)
+                startRealtimeCloudSync(userId)
             }
         }
     }
@@ -192,7 +192,7 @@ class BudgetViewModel @Inject constructor(
                 
                 refreshHouseholdData(invite.householdId)
                 refreshPendingInvites(updatedProfile.email)
-                syncFromCloud(invite.householdId, isManual = false)
+                startRealtimeCloudSync(invite.householdId)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -265,6 +265,51 @@ class BudgetViewModel @Inject constructor(
             }
         } finally {
             _isSyncing.value = false
+        }
+    }
+
+    private var realtimeSyncJob: kotlinx.coroutines.Job? = null
+
+    private fun startRealtimeCloudSync(householdId: String) {
+        realtimeSyncJob?.cancel()
+        val uid = _userId.value ?: return
+
+        realtimeSyncJob = viewModelScope.launch {
+            repository.listenToRealtimeData(householdId, uid)
+                .collect { data ->
+                    val currentMonth = _selectedMonthYear.value ?: LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
+
+                    @Suppress("UNCHECKED_CAST")
+                    val incomeList = (data["income"] as? List<IncomeStream>)?.map { stream ->
+                        stream.copy(
+                            householdId = householdId,
+                            monthYear = if (stream.monthYear.isNullOrBlank()) currentMonth else stream.monthYear
+                        )
+                    } ?: emptyList()
+
+                    @Suppress("UNCHECKED_CAST")
+                    val categoriesList = (data["categories"] as? List<BudgetCategory>)?.map { cat ->
+                        cat.copy(
+                            householdId = householdId,
+                            monthYear = if (cat.monthYear.isNullOrBlank()) currentMonth else cat.monthYear
+                        )
+                    } ?: emptyList()
+
+                    @Suppress("UNCHECKED_CAST")
+                    val itemsList = (data["items"] as? List<EnvelopeItem>)?.map { item ->
+                        item.copy(
+                            householdId = householdId,
+                            monthYear = if (item.monthYear.isNullOrBlank()) currentMonth else item.monthYear
+                        )
+                    } ?: emptyList()
+
+                    @Suppress("UNCHECKED_CAST")
+                    val transactionsList = (data["transactions"] as? List<BudgetTransaction>)?.map { tx ->
+                        tx.copy(householdId = householdId)
+                    } ?: emptyList()
+
+                    repository.replaceLocalDataWithCloudData(householdId, incomeList, categoriesList, itemsList, transactionsList)
+                }
         }
     }
 

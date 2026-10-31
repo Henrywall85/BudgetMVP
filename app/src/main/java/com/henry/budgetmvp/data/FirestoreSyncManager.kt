@@ -3,7 +3,10 @@ package com.henry.budgetmvp.data
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.toObjects
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 class FirestoreSyncManager(private val db: FirebaseFirestore) {
@@ -214,6 +217,82 @@ class FirestoreSyncManager(private val db: FirebaseFirestore) {
                 batch.delete(doc.reference)
             }
             batch.commit().await()
+        }
+    }
+
+    fun listenToRealtimeData(householdId: String, userId: String): Flow<Map<String, List<Any>>> = callbackFlow {
+        if (householdId.isBlank()) {
+            trySend(emptyMap())
+            close()
+            return@callbackFlow
+        }
+
+        val registrations = mutableListOf<com.google.firebase.firestore.ListenerRegistration>()
+
+        var latestIncome = emptyList<IncomeStream>()
+        var latestCategories = emptyList<BudgetCategory>()
+        var latestItems = emptyList<EnvelopeItem>()
+        var latestTransactions = emptyList<BudgetTransaction>()
+
+        fun emitCombined() {
+            trySend(
+                mapOf(
+                    "income" to latestIncome,
+                    "categories" to latestCategories,
+                    "items" to latestItems,
+                    "transactions" to latestTransactions
+                )
+            )
+        }
+
+        val regIncome = db.collection("incomeStreams")
+            .whereEqualTo("householdId", householdId)
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    latestIncome = snapshot.toObjects(IncomeStream::class.java)
+                        .groupBy { Triple(it.householdId, it.monthYear, it.sourceName.trim().lowercase()) }
+                        .map { (_, group) -> group.maxByOrNull { it.monthlyAmount } ?: group.first() }
+                    emitCombined()
+                }
+            }
+        registrations.add(regIncome)
+
+        val regCategories = db.collection("categories")
+            .whereEqualTo("householdId", householdId)
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    latestCategories = snapshot.toObjects(BudgetCategory::class.java)
+                        .groupBy { Triple(it.householdId, it.monthYear, it.name.trim().lowercase()) }
+                        .map { (_, group) -> group.first() }
+                    emitCombined()
+                }
+            }
+        registrations.add(regCategories)
+
+        val regItems = db.collection("envelopeItems")
+            .whereEqualTo("householdId", householdId)
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    latestItems = snapshot.toObjects(EnvelopeItem::class.java)
+                        .groupBy { Triple(it.householdId, it.monthYear, Pair(it.categoryId, it.name.trim().lowercase())) }
+                        .map { (_, group) -> group.maxByOrNull { it.targetAmount } ?: group.first() }
+                    emitCombined()
+                }
+            }
+        registrations.add(regItems)
+
+        val regTx = db.collection("transactions")
+            .whereEqualTo("householdId", householdId)
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    latestTransactions = snapshot.toObjects(BudgetTransaction::class.java).distinctBy { it.id }
+                    emitCombined()
+                }
+            }
+        registrations.add(regTx)
+
+        awaitClose {
+            registrations.forEach { it.remove() }
         }
     }
 }

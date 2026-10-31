@@ -51,6 +51,10 @@ class BudgetRepository @Inject constructor(
     }
 
     // --- Sync Operations ---
+    fun listenToRealtimeData(householdId: String, userId: String): Flow<Map<String, List<Any>>> {
+        return firestore.listenToRealtimeData(householdId, userId)
+    }
+
     suspend fun fetchAllDataFromCloud(householdId: String, userId: String): Map<String, List<Any>> {
         return withTimeout(15.seconds) {
             firestore.fetchAllData(householdId, userId)

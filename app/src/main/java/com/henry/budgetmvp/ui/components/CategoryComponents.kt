@@ -57,11 +57,24 @@ import java.util.UUID
 fun CategoryHeader(
     category: BudgetCategory,
     isExpanded: Boolean,
+    plannedAmount: Double = 0.0,
+    spentAmount: Double = 0.0,
+    viewMode: Int = 0,
     onToggleExpand: () -> Unit,
     onEditCategory: () -> Unit
 ) {
     val categoryIcon = remember(category.name) {
         getCategoryIcon(category.name)
+    }
+
+    val (headerValue, headerLabel, headerColor) = when (viewMode) {
+        1 -> Triple("$${"%,.0f".format(spentAmount)}", "spent", MaterialTheme.colorScheme.primary)
+        2 -> {
+            val rem = plannedAmount - spentAmount
+            val color = if (rem < 0) Color(0xFFC62828) else Color(0xFF2E7D32)
+            Triple("$${"%,.0f".format(rem)}", "remaining", color)
+        }
+        else -> Triple("$${"%,.0f".format(plannedAmount)}", "planned", MaterialTheme.colorScheme.primary)
     }
 
     Surface(
@@ -100,6 +113,12 @@ fun CategoryHeader(
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "$headerValue $headerLabel",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = headerColor
                     )
                 }
                 
@@ -140,6 +159,7 @@ fun EnvelopeItemRow(
     item: EnvelopeItem, 
     spentAmount: Double, 
     todayDay: Int,
+    viewMode: Int = 0,
     onClick: () -> Unit
 ) {
     val goalAmount = item.targetAmount
@@ -147,6 +167,17 @@ fun EnvelopeItemRow(
     
     val isOverBudget = spentAmount > goalAmount + 0.001
     val percentSpent = (spentRatio * 100).toInt()
+
+    val (primaryLabel, primaryValue, primaryColor) = when (viewMode) {
+        1 -> Triple("spent", "$${"%,.2f".format(spentAmount)}", if (isOverBudget) Color(0xFFC62828) else MaterialTheme.colorScheme.primary)
+        2 -> {
+            val remaining = goalAmount - spentAmount
+            val clampedRem = if (kotlin.math.abs(remaining) < 0.001) 0.0 else remaining
+            val color = if (clampedRem < 0) Color(0xFFC62828) else Color(0xFF2E7D32)
+            Triple("remaining", "$${"%,.2f".format(clampedRem)}", color)
+        }
+        else -> Triple("planned", "$${"%,.2f".format(goalAmount)}", MaterialTheme.colorScheme.primary)
+    }
     
     val progressColor = when {
         spentRatio > 1.0f -> Color(0xFFC62828) // Red
@@ -229,16 +260,16 @@ fun EnvelopeItemRow(
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "planned",
+                        text = primaryLabel,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "$${"%,.2f".format(item.targetAmount)}",
+                        text = primaryValue,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = primaryColor
                     )
                 }
             }

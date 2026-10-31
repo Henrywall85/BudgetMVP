@@ -36,6 +36,7 @@ sealed class CalendarEventEntry(open val dayOfMonth: Int) {
         val sourceName: String,
         val paydayNum: Int,
         val paycheckAmount: Double,
+        val isReceived: Boolean,
         val periodStart: LocalDate,
         val periodEnd: LocalDate
     ) : CalendarEventEntry(paydayNum)
@@ -128,9 +129,12 @@ fun CalendarScreen(
                 spent.coerceAtMost(item.targetAmount)
             }
 
-            // Calculate monthly paydays & pay period entries
-            val monthlyPaydayEntries = remember(streams, currentDate) {
+            // Calculate monthly paydays & actual/planned income entries
+            val monthlyPaydayEntries = remember(streams, filteredTransactions, currentDate) {
                 val list = mutableListOf<CalendarEventEntry.PaydayEntry>()
+                val incomeTransactions = filteredTransactions.filter { it.type == TransactionType.INCOME }
+                val matchedTxIds = mutableSetOf<String>()
+
                 streams.forEach { stream ->
                     val days = calculatePayDaysForMonth(stream.payScheduleType, stream.anchorDate, stream.payDays, yearMonth)
                     days.forEach { dayNum ->
@@ -138,18 +142,53 @@ fun CalendarScreen(
                         val info = calculatePayPeriodDetails(stream, paydayDate)
                         val start = info?.nextPayday ?: paydayDate
                         val end = info?.nextPeriodEnd ?: paydayDate
-                        val amt = info?.paycheckAmount ?: (if (days.isNotEmpty()) stream.monthlyAmount / days.size else stream.monthlyAmount)
+
+                        val matchingTx = incomeTransactions.find { tx ->
+                            try {
+                                val txDate = LocalDate.parse(tx.date)
+                                txDate.dayOfMonth == dayNum && (tx.incomeStreamId == stream.id || tx.incomeStreamId.isNullOrBlank()) && !matchedTxIds.contains(tx.id)
+                            } catch (e: Exception) {
+                                false
+                            }
+                        }
+
+                        if (matchingTx != null) {
+                            matchedTxIds.add(matchingTx.id)
+                        }
+
+                        val isReceived = matchingTx != null
+                        val actualOrPlannedAmount = matchingTx?.amount ?: stream.monthlyAmount
+
                         list.add(
                             CalendarEventEntry.PaydayEntry(
-                                sourceName = stream.sourceName,
+                                sourceName = if (matchingTx != null && matchingTx.merchant.isNotBlank()) matchingTx.merchant else stream.sourceName,
                                 paydayNum = dayNum,
-                                paycheckAmount = amt,
+                                paycheckAmount = actualOrPlannedAmount,
+                                isReceived = isReceived,
                                 periodStart = start,
                                 periodEnd = end
                             )
                         )
                     }
                 }
+
+                incomeTransactions.filter { !matchedTxIds.contains(it.id) }.forEach { tx ->
+                    try {
+                        val txDate = LocalDate.parse(tx.date)
+                        val dayNum = txDate.dayOfMonth
+                        list.add(
+                            CalendarEventEntry.PaydayEntry(
+                                sourceName = if (tx.merchant.isNotBlank()) tx.merchant else "Income",
+                                paydayNum = dayNum,
+                                paycheckAmount = tx.amount,
+                                isReceived = true,
+                                periodStart = txDate,
+                                periodEnd = txDate
+                            )
+                        )
+                    } catch (ignored: Exception) {}
+                }
+
                 list
             }
 
@@ -397,8 +436,10 @@ fun CalendarScreen(
                             is CalendarEventEntry.PaydayEntry -> {
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF059669).copy(alpha = 0.08f)),
-                                    border = BorderStroke(1.dp, Color(0xFF059669).copy(alpha = 0.25f))
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (entry.isReceived) Color(0xFF059669).copy(alpha = 0.12f) else Color(0xFF059669).copy(alpha = 0.06f)
+                                    ),
+                                    border = BorderStroke(1.dp, if (entry.isReceived) Color(0xFF059669).copy(alpha = 0.4f) else Color(0xFF059669).copy(alpha = 0.2f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(12.dp).fillMaxWidth(),
@@ -423,25 +464,39 @@ fun CalendarScreen(
                                             Spacer(modifier = Modifier.width(12.dp))
                                             Column {
                                                 Text(
-                                                    text = "Payday: ${entry.sourceName.ifBlank { "Income Stream" }}",
+                                                    text = "${if (entry.isReceived) "Income" else "Payday"}: ${entry.sourceName.ifBlank { "Income Stream" }}",
                                                     fontWeight = FontWeight.Bold,
                                                     style = MaterialTheme.typography.bodyLarge
                                                 )
-                                                val periodStr = "Pay Period: ${entry.periodStart.format(DateTimeFormatter.ofPattern("MMM d"))} – ${entry.periodEnd.format(DateTimeFormatter.ofPattern("MMM d"))}"
+                                                val periodStr = if (entry.periodStart == entry.periodEnd) "Received" else "Pay Period: ${entry.periodStart.format(DateTimeFormatter.ofPattern("MMM d"))} – ${entry.periodEnd.format(DateTimeFormatter.ofPattern("MMM d"))}"
                                                 Text(
                                                     text = periodStr,
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    color = if (entry.isReceived) Color(0xFF059669) else MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                         }
 
-                                        Text(
-                                            text = "+$${"%,.2f".format(entry.paycheckAmount)}",
-                                            fontWeight = FontWeight.Black,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = Color(0xFF059669)
-                                        )
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                text = "+$${"%,.2f".format(entry.paycheckAmount)}",
+                                                fontWeight = FontWeight.Black,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = Color(0xFF059669)
+                                            )
+                                            Surface(
+                                                color = if (entry.isReceived) Color(0xFF059669).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (entry.isReceived) "✓ Received" else "Planned",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (entry.isReceived) Color(0xFF059669) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -469,7 +524,7 @@ fun CalendarScreen(
                     if (days.isEmpty()) {
                         events.add(Triple(stream.sourceName, 1, stream.monthlyAmount))
                     } else {
-                        val perDay = stream.monthlyAmount / days.size
+                        val perDay = stream.monthlyAmount
                         days.forEach { d -> events.add(Triple(stream.sourceName, d, perDay)) }
                     }
                 }
@@ -546,7 +601,10 @@ fun CalendarScreen(
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Column {
                                         Text("${activeBucket.sourceName} (Paycheck ${activeBucket.index})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                        Text("Funding Days ${activeBucket.periodStartDay} – ${activeBucket.periodEndDay}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        val startLocalDate = currentYearMonth.atDay(activeBucket.periodStartDay.coerceIn(1, currentYearMonth.lengthOfMonth()))
+                                        val endLocalDate = currentYearMonth.atDay(activeBucket.periodEndDay.coerceIn(1, currentYearMonth.lengthOfMonth()))
+                                        val dateRangeText = "${startLocalDate.format(DateTimeFormatter.ofPattern("MMM d"))} – ${endLocalDate.format(DateTimeFormatter.ofPattern("MMM d"))}"
+                                        Text("Funding Period: $dateRangeText", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     Text("+$${"%,.2f".format(activeBucket.incomeAmount)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color(0xFF059669))
                                 }
@@ -719,7 +777,7 @@ private fun calculatePayPeriodDetails(
 
             val yearMonth = YearMonth.from(nextPayday)
             val payDaysInMonth = calculatePayDaysForMonth(type, anchorStr, fixedDaysStr, yearMonth).size
-            val paycheckAmount = if (payDaysInMonth > 0) stream.monthlyAmount / payDaysInMonth else stream.monthlyAmount
+            val paycheckAmount = stream.monthlyAmount
 
             PayPeriodDetails(
                 streamName = stream.sourceName,
@@ -775,7 +833,7 @@ private fun calculatePayPeriodDetails(
 
             val yearMonth = YearMonth.from(nextPayday)
             val payDaysInMonth = calculatePayDaysForMonth(type, anchorStr, fixedDaysStr, yearMonth).size
-            val paycheckAmount = if (payDaysInMonth > 0) stream.monthlyAmount / payDaysInMonth else stream.monthlyAmount
+            val paycheckAmount = stream.monthlyAmount
 
             PayPeriodDetails(
                 streamName = stream.sourceName,

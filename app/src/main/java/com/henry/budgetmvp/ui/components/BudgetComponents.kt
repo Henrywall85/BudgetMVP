@@ -35,11 +35,12 @@ import com.henry.budgetmvp.data.IncomeStream
 import com.henry.budgetmvp.data.TransactionType
 import com.henry.budgetmvp.util.getPayDaysCountForMonth
 import com.henry.budgetmvp.util.getMonthlyGoalForMonth
-import java.time.YearMonth
+import com.henry.budgetmvp.util.calculatePayDaysForMonth
 import com.henry.budgetmvp.util.ThousandsSeparatorTransformation
 import com.henry.budgetmvp.util.formatIsoDate
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -131,6 +132,39 @@ fun IncomeDetailsCard(
     val payDaysCount = remember(stream, yearMonth) { stream.getPayDaysCountForMonth(yearMonth) }
     val monthlyGoal = remember(stream, yearMonth) { stream.getMonthlyGoalForMonth(yearMonth) }
 
+    val nextPayPeriodText = remember(stream, currentDate) {
+        if (stream.payScheduleType == "IRREGULAR") return@remember "Irregular Income"
+        try {
+            val ym = YearMonth.from(currentDate)
+            val days = calculatePayDaysForMonth(stream.payScheduleType, stream.anchorDate, stream.payDays, ym)
+            if (days.isNotEmpty()) {
+                val paydayNum = days.firstOrNull { it >= currentDate.dayOfMonth } ?: days.first()
+                val paydayDate = ym.atDay(paydayNum)
+
+                val interval = when (stream.payScheduleType) {
+                    "WEEKLY" -> 7L
+                    "BI_WEEKLY" -> 14L
+                    else -> 30L
+                }
+                val periodEnd = paydayDate.plusDays(interval - 1)
+                val startStr = paydayDate.format(DateTimeFormatter.ofPattern("MMM d"))
+                val endStr = periodEnd.format(DateTimeFormatter.ofPattern("MMM d"))
+                "$startStr – $endStr"
+            } else if (stream.anchorDate.isNotBlank()) {
+                val anchor = LocalDate.parse(stream.anchorDate)
+                val interval = if (stream.payScheduleType == "WEEKLY") 7L else 14L
+                val periodEnd = anchor.plusDays(interval - 1)
+                val startStr = anchor.format(DateTimeFormatter.ofPattern("MMM d"))
+                val endStr = periodEnd.format(DateTimeFormatter.ofPattern("MMM d"))
+                "$startStr – $endStr"
+            } else {
+                "$payDaysCount Checks"
+            }
+        } catch (e: Exception) {
+            "$payDaysCount Checks"
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -154,7 +188,7 @@ fun IncomeDetailsCard(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
                 ) {
                     Text(
-                        text = "$payDaysCount Check${if (payDaysCount > 1) "s" else ""}",
+                        text = "Next Period: $nextPayPeriodText",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),

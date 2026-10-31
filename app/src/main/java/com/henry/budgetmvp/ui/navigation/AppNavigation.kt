@@ -1,6 +1,6 @@
 package com.henry.budgetmvp.ui.navigation
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -116,9 +116,11 @@ fun AppNavigation(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     var currentScreen by remember { mutableStateOf(if (user != null) Screen.HOME else Screen.LOGIN) }
+    var isUncategorizedBubblesOpen by remember { mutableStateOf(false) }
     
     // Sync currentScreen with pager state for TopAppBar title and Overlay logic
     LaunchedEffect(pagerState.currentPage, user) {
+        isUncategorizedBubblesOpen = false
         if (user != null) {
             when (pagerState.currentPage) {
                 0 -> currentScreen = Screen.HOME
@@ -427,55 +429,61 @@ fun AppNavigation(
                 Scaffold(
                     bottomBar = {
                         if (currentScreen != Screen.LOGIN && currentScreen != Screen.SIGNUP) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                                shape = RoundedCornerShape(28.dp),
-                                tonalElevation = 6.dp,
-                                shadowElevation = 8.dp,
-                                border = BorderStroke(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                                ),
-                                modifier = Modifier
-                                    .navigationBarsPadding()
-                                    .padding(horizontal = 24.dp, vertical = 12.dp)
-                                    .fillMaxWidth()
+                            AnimatedVisibility(
+                                visible = !isUncategorizedBubblesOpen,
+                                enter = fadeIn(animationSpec = tween(400, easing = androidx.compose.animation.core.FastOutSlowInEasing)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(400, easing = androidx.compose.animation.core.FastOutSlowInEasing)),
+                                exit = fadeOut(animationSpec = tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing))
                             ) {
-                                Row(
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                                    shape = RoundedCornerShape(28.dp),
+                                    tonalElevation = 6.dp,
+                                    shadowElevation = 8.dp,
+                                    border = BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                    ),
                                     modifier = Modifier
-                                        .height(68.dp)
+                                        .navigationBarsPadding()
+                                        .padding(horizontal = 24.dp, vertical = 12.dp)
                                         .fillMaxWidth()
-                                        .padding(horizontal = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceEvenly,
-                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    NavigationTabItem(
-                                        selected = pagerState.currentPage == 0,
-                                        icon = Lucide.House,
-                                        label = "Home",
-                                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(0) } }
-                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .height(68.dp)
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceEvenly,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        NavigationTabItem(
+                                            selected = pagerState.currentPage == 0,
+                                            icon = Lucide.House,
+                                            label = "Home",
+                                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(0) } }
+                                        )
 
-                                    NavigationTabItem(
-                                        selected = pagerState.currentPage == 1,
-                                        icon = Lucide.Wallet,
-                                        label = "Budget",
-                                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(1) } }
-                                    )
+                                        NavigationTabItem(
+                                            selected = pagerState.currentPage == 1,
+                                            icon = Lucide.Wallet,
+                                            label = "Budget",
+                                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(1) } }
+                                        )
 
-                                    NavigationTabItem(
-                                        selected = pagerState.currentPage == 2,
-                                        icon = Lucide.Calendar,
-                                        label = "Calendar",
-                                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(2) } }
-                                    )
+                                        NavigationTabItem(
+                                            selected = pagerState.currentPage == 2,
+                                            icon = Lucide.Calendar,
+                                            label = "Calendar",
+                                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(2) } }
+                                        )
 
-                                    NavigationTabItem(
-                                        selected = pagerState.currentPage == 3,
-                                        icon = Lucide.ReceiptText,
-                                        label = "Transactions",
-                                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } }
-                                    )
+                                        NavigationTabItem(
+                                            selected = pagerState.currentPage == 3,
+                                            icon = Lucide.ReceiptText,
+                                            label = "Transactions",
+                                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -597,6 +605,7 @@ fun AppNavigation(
                                                 totalSpent = totalSpentExpenses,
                                                 categoriesWithItems = categoriesWithItems,
                                                 filteredTransactions = filteredTransactions,
+                                                incomeStreams = streams,
                                                 onNavigateToBudget = { coroutineScope.launch { pagerState.animateScrollToPage(1) } },
                                                 onNavigateToCalendar = { coroutineScope.launch { pagerState.animateScrollToPage(2) } },
                                                 onOpenMenu = { coroutineScope.launch { drawerState.open() } },
@@ -667,7 +676,17 @@ fun AppNavigation(
                                                 onAddTransaction = {
                                                     editingTransaction = null
                                                     showTransactionEditSheet = true
-                                                }
+                                                },
+                                                onEditTransaction = { transaction ->
+                                                    editingTransaction = transaction
+                                                    showTransactionEditSheet = true
+                                                },
+                                                onNavigateToUncategorizedTransactions = {
+                                                    coroutineScope.launch { pagerState.animateScrollToPage(3) }
+                                                },
+                                                isUncategorizedBubblesOpen = isUncategorizedBubblesOpen,
+                                                onToggleUncategorizedBubbles = { isUncategorizedBubblesOpen = it },
+                                                bottomPadding = padding.calculateBottomPadding()
                                             )
                                         }
                                         2 -> {

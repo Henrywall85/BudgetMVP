@@ -69,6 +69,7 @@ fun TransactionsScreen(
             val matchesType = when (filterType) {
                 1 -> tx.type == TransactionType.EXPENSE
                 2 -> tx.type == TransactionType.INCOME
+                3 -> tx.type == TransactionType.EXPENSE && (tx.itemId == null || tx.itemId.isBlank())
                 else -> true
             }
             val matchesSearch = if (searchQuery.isBlank()) true else {
@@ -197,29 +198,46 @@ fun TransactionsScreen(
 
                     val expenseCount = filteredList.count { it.type == TransactionType.EXPENSE }
                     val incomeCount = filteredList.count { it.type == TransactionType.INCOME }
+                    val uncategorizedCount = transactions.count { it.type == TransactionType.EXPENSE && (it.itemId == null || it.itemId.isBlank()) }
 
-                    Row(
+                    androidx.compose.foundation.lazy.LazyRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        FilterChip(
-                            selected = filterType == 0,
-                            onClick = { filterType = 0 },
-                            label = { Text("All (${filteredList.size})", style = MaterialTheme.typography.labelSmall) },
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
-                        )
-                        FilterChip(
-                            selected = filterType == 1,
-                            onClick = { filterType = 1 },
-                            label = { Text("Expenses ($expenseCount)", style = MaterialTheme.typography.labelSmall) },
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
-                        )
-                        FilterChip(
-                            selected = filterType == 2,
-                            onClick = { filterType = 2 },
-                            label = { Text("Income ($incomeCount)", style = MaterialTheme.typography.labelSmall) },
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFF059669).copy(alpha = 0.15f), selectedLabelColor = Color(0xFF059669))
-                        )
+                        item {
+                            FilterChip(
+                                selected = filterType == 0,
+                                onClick = { filterType = 0 },
+                                label = { Text("All (${filteredList.size})", style = MaterialTheme.typography.labelSmall) },
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                selected = filterType == 1,
+                                onClick = { filterType = 1 },
+                                label = { Text("Expenses ($expenseCount)", style = MaterialTheme.typography.labelSmall) },
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                selected = filterType == 2,
+                                onClick = { filterType = 2 },
+                                label = { Text("Income ($incomeCount)", style = MaterialTheme.typography.labelSmall) },
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFF059669).copy(alpha = 0.15f), selectedLabelColor = Color(0xFF059669))
+                            )
+                        }
+                        if (uncategorizedCount > 0) {
+                            item {
+                                FilterChip(
+                                    selected = filterType == 3,
+                                    onClick = { filterType = 3 },
+                                    label = { Text("Uncategorized ($uncategorizedCount)", style = MaterialTheme.typography.labelSmall) },
+                                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFFEF6C00).copy(alpha = 0.15f), selectedLabelColor = Color(0xFFEF6C00))
+                                )
+                            }
+                        }
                     }
                 }
             }

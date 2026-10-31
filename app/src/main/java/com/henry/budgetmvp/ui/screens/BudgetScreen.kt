@@ -1,5 +1,8 @@
 package com.henry.budgetmvp.ui.screens
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -20,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
 import com.henry.budgetmvp.data.CategoryWithItems
@@ -55,7 +59,12 @@ fun BudgetScreen(
     onAddItem: (String) -> Unit,
     onEditItem: (com.henry.budgetmvp.data.EnvelopeItem) -> Unit,
     onToggleCategory: (String) -> Unit,
-    onAddTransaction: () -> Unit = {}
+    onAddTransaction: () -> Unit = {},
+    onEditTransaction: (BudgetTransaction) -> Unit = {},
+    onNavigateToUncategorizedTransactions: () -> Unit = {},
+    isUncategorizedBubblesOpen: Boolean = false,
+    onToggleUncategorizedBubbles: (Boolean) -> Unit = {},
+    bottomPadding: Dp = 0.dp
 ) {
     var viewMode by remember { mutableStateOf(0) } // 0: Planned, 1: Spent, 2: Remaining
 
@@ -71,6 +80,19 @@ fun BudgetScreen(
     val totalIncome = remember(streams, yearMonth) { streams.sumOf { it.getMonthlyGoalForMonth(yearMonth) } }
     val totalPlanned = remember(categoriesWithItems) {
         categoriesWithItems.sumOf { cat -> cat.items.sumOf { it.targetAmount } }
+    }
+
+    val uncategorizedTransactions = remember(filteredTransactions) {
+        filteredTransactions.filter { it.type == TransactionType.EXPENSE && (it.itemId == null || it.itemId.isBlank()) }
+    }
+    val totalUncategorizedSpent = remember(uncategorizedTransactions) {
+        uncategorizedTransactions.sumOf { it.amount }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(uncategorizedTransactions.size) {
+        if (uncategorizedTransactions.isEmpty() && isUncategorizedBubblesOpen) {
+            onToggleUncategorizedBubbles(false)
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -349,9 +371,15 @@ fun BudgetScreen(
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                         ) {
                             Column(modifier = Modifier.padding(bottom = if (isExpanded) 8.dp else 0.dp)) {
+                                val catPlanned = categoryWithItems.items.sumOf { it.targetAmount }
+                                val catSpent = categoryWithItems.items.sumOf { spentByItemId[it.id] ?: 0.0 }
+
                                 CategoryHeader(
                                     category = categoryWithItems.category,
                                     isExpanded = isExpanded,
+                                    plannedAmount = catPlanned,
+                                    spentAmount = catSpent,
+                                    viewMode = viewMode,
                                     onToggleExpand = { onToggleCategory(categoryWithItems.category.id) },
                                     onEditCategory = { onEditCategory(categoryWithItems.category) }
                                 )
@@ -369,6 +397,7 @@ fun BudgetScreen(
                                             item = item,
                                             spentAmount = spentAmount,
                                             todayDay = todayDay,
+                                            viewMode = viewMode,
                                             onClick = { onEditItem(item) }
                                         )
                                         if (index < categoryWithItems.items.lastIndex) {
@@ -435,17 +464,165 @@ fun BudgetScreen(
             )
         }
 
-        FloatingActionButton(
-            onClick = onAddTransaction,
+        val fabBottomPaddingAnimated by animateDpAsState(
+            targetValue = if (isUncategorizedBubblesOpen) 24.dp else bottomPadding + 16.dp,
+            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+            label = "fab_bottom_padding"
+        )
+
+        val fabSizeAnimated by animateDpAsState(
+            targetValue = if (isUncategorizedBubblesOpen) 42.dp else 52.dp,
+            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+            label = "fab_size"
+        )
+
+        val bubblesBottomPaddingAnimated by animateDpAsState(
+            targetValue = if (isUncategorizedBubblesOpen) 78.dp else bottomPadding + 78.dp,
+            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+            label = "bubbles_bottom_padding"
+        )
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = uncategorizedTransactions.isNotEmpty() && isUncategorizedBubblesOpen,
+            enter = fadeIn(animationSpec = tween(400, easing = FastOutSlowInEasing)) + slideInVertically(initialOffsetY = { it / 2 }, animationSpec = tween(400, easing = FastOutSlowInEasing)),
+            exit = fadeOut(animationSpec = tween(350, easing = FastOutSlowInEasing)) + slideOutVertically(targetOffsetY = { it / 2 }, animationSpec = tween(350, easing = FastOutSlowInEasing)),
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 180.dp, end = 20.dp),
-            containerColor = Color(0xFF059669),
-            contentColor = Color.White,
-            shape = CircleShape,
-            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
         ) {
-            Icon(Lucide.Plus, contentDescription = "Add Transaction", modifier = Modifier.size(24.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = bubblesBottomPaddingAnimated, start = 16.dp, end = 16.dp)
+            ) {
+                androidx.compose.foundation.lazy.LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(uncategorizedTransactions) { tx ->
+                        Surface(
+                            modifier = Modifier
+                                .size(116.dp)
+                                .clickable { onEditTransaction(tx) },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surface,
+                            shadowElevation = 8.dp,
+                            border = BorderStroke(2.dp, Color(0xFFEF6C00).copy(alpha = 0.6f))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                val dateStr = try {
+                                    LocalDate.parse(tx.date).format(DateTimeFormatter.ofPattern("MMM d")).uppercase()
+                                } catch (e: Exception) { tx.date.uppercase() }
+
+                                Text(
+                                    text = dateStr,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFEF6C00)
+                                )
+
+                                Text(
+                                    text = "-$${"%,.2f".format(tx.amount)}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Black,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+
+                                val subText = if (tx.merchant.isNotBlank()) tx.merchant else if (tx.note.isNotBlank()) tx.note else "Quick Expense"
+                                Text(
+                                    text = subText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        val infiniteTransition = rememberInfiniteTransition(label = "sonar_pulse")
+        val pulseScale by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.45f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1400, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "sonar_scale"
+        )
+        val pulseAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.55f,
+            targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1400, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "sonar_alpha"
+        )
+
+        if (uncategorizedTransactions.isNotEmpty()) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = fabBottomPaddingAnimated)
+            ) {
+                if (!isUncategorizedBubblesOpen) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .graphicsLayer {
+                                scaleX = pulseScale
+                                scaleY = pulseScale
+                                alpha = pulseAlpha
+                            }
+                            .background(Color(0xFFEF6C00), shape = CircleShape)
+                    )
+                }
+
+                FloatingActionButton(
+                    onClick = { onToggleUncategorizedBubbles(!isUncategorizedBubblesOpen) },
+                    modifier = Modifier.size(fabSizeAnimated),
+                    containerColor = if (isUncategorizedBubblesOpen) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f) else Color(0xFFEF6C00),
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
+                ) {
+                    AnimatedContent(
+                        targetState = isUncategorizedBubblesOpen,
+                        transitionSpec = {
+                            (fadeIn() + scaleIn()).togetherWith(fadeOut() + scaleOut())
+                        },
+                        label = "fab_close_transition"
+                    ) { isExpanded ->
+                        if (isExpanded) {
+                            Icon(
+                                imageVector = Lucide.X,
+                                contentDescription = "Close Uncategorized Bubbles",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "${uncategorizedTransactions.size}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

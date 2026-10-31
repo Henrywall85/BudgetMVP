@@ -1,5 +1,6 @@
 package com.henry.budgetmvp.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,7 +27,10 @@ import com.composables.icons.lucide.*
 import com.henry.budgetmvp.data.BudgetTransaction
 import com.henry.budgetmvp.data.CategoryWithItems
 import com.henry.budgetmvp.data.TransactionType
+import com.henry.budgetmvp.data.IncomeStream
+import com.henry.budgetmvp.util.calculatePayDaysForMonth
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import java.time.DayOfWeek
@@ -47,6 +51,7 @@ fun HomeScreen(
     totalSpent: Double,
     categoriesWithItems: List<CategoryWithItems>,
     filteredTransactions: List<BudgetTransaction>,
+    incomeStreams: List<IncomeStream> = emptyList(),
     onNavigateToBudget: () -> Unit,
     onNavigateToCalendar: () -> Unit,
     onOpenMenu: () -> Unit,
@@ -61,26 +66,26 @@ fun HomeScreen(
         in 12..16 -> "Good afternoon,"
         else -> "Good evening,"
     }
-    val startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    val startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
     
     // Set of dates where at least one transaction was recorded
     val transactionDates = remember(filteredTransactions) {
         filteredTransactions.asSequence().map { it.date }.toSet()
     }
 
-    // 7-day week schedule (Monday to Sunday)
+    // 7-day week schedule (Sunday to Saturday, matching Calendar Grid)
     val weekDays = remember(startOfWeek, transactionDates, today) {
         (0..6).map { offset ->
             val date = startOfWeek.plusDays(offset.toLong())
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val isLogged = transactionDates.contains(dateStr)
             val label = when (offset) {
-                0 -> "M"
-                1 -> "T"
-                2 -> "W"
-                3 -> "T"
-                4 -> "F"
-                5 -> "S"
+                0 -> "S"
+                1 -> "M"
+                2 -> "T"
+                3 -> "W"
+                4 -> "T"
+                5 -> "F"
                 else -> "S"
             }
             DayStatus(
@@ -118,6 +123,40 @@ fun HomeScreen(
             }
             .sortedBy { it.dueDay }
             .take(3)
+    }
+
+    val nextPayPeriodInfo = remember(incomeStreams, today) {
+        if (incomeStreams.isEmpty()) null else {
+            val primaryStream = incomeStreams.first()
+            val ym = YearMonth.from(today)
+            val days = calculatePayDaysForMonth(primaryStream.payScheduleType, primaryStream.anchorDate, primaryStream.payDays, ym)
+            if (days.isNotEmpty()) {
+                val paydayNum = days.firstOrNull { it >= today.dayOfMonth } ?: days.first()
+                val paydayDate = ym.atDay(paydayNum)
+
+                val interval = when (primaryStream.payScheduleType) {
+                    "WEEKLY" -> 7L
+                    "BI_WEEKLY" -> 14L
+                    else -> 30L
+                }
+                val periodEnd = paydayDate.plusDays(interval - 1)
+                val startStr = paydayDate.format(DateTimeFormatter.ofPattern("MMM d"))
+                val endStr = periodEnd.format(DateTimeFormatter.ofPattern("MMM d"))
+                val daysUntil = if (paydayDate >= today) java.time.temporal.ChronoUnit.DAYS.between(today, paydayDate) else 0L
+
+                Triple(primaryStream.sourceName, "$startStr – $endStr", daysUntil)
+            } else if (primaryStream.anchorDate.isNotBlank()) {
+                try {
+                    val anchor = LocalDate.parse(primaryStream.anchorDate)
+                    val interval = if (primaryStream.payScheduleType == "WEEKLY") 7L else 14L
+                    val periodEnd = anchor.plusDays(interval - 1)
+                    val startStr = anchor.format(DateTimeFormatter.ofPattern("MMM d"))
+                    val endStr = periodEnd.format(DateTimeFormatter.ofPattern("MMM d"))
+                    val daysUntil = if (anchor >= today) java.time.temporal.ChronoUnit.DAYS.between(today, anchor) else 0L
+                    Triple(primaryStream.sourceName, "$startStr – $endStr", daysUntil)
+                } catch (e: Exception) { null }
+            } else null
+        }
     }
 
     Column(
@@ -245,6 +284,70 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+
+        if (nextPayPeriodInfo != null) {
+            val (sourceName, dateRangeText, daysUntil) = nextPayPeriodInfo
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clickable { onNavigateToCalendar() },
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF059669).copy(alpha = 0.08f)),
+                border = BorderStroke(1.dp, Color(0xFF059669).copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF059669).copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Lucide.HandCoins,
+                                contentDescription = "Next Payday",
+                                tint = Color(0xFF059669),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "NEXT PAY PERIOD",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF059669)
+                            )
+                            Text(
+                                text = dateRangeText,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "$sourceName • ${if (daysUntil == 0L) "Payday Today!" else "Payday in $daysUntil days"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Icon(
+                        Lucide.ChevronRight,
+                        contentDescription = "Calendar",
+                        tint = Color(0xFF059669),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         // 3. Monthly Summary

@@ -374,7 +374,7 @@ fun TransactionEntrySheet(
     val isFormValid by remember {
         derivedStateOf {
             val amountValue = amount.toDoubleOrNull() ?: 0.0
-            amountValue > 0 && (type == TransactionType.INCOME || selectedItemId != null)
+            amountValue > 0
         }
     }
 
@@ -505,10 +505,10 @@ fun TransactionEntrySheet(
                         onExpandedChange = { categoryExpanded = it }
                     ) {
                         OutlinedTextField(
-                            value = selectedCategory?.category?.name ?: "Select Category",
+                            value = selectedCategory?.category?.name ?: "Uncategorized (Assign Later)",
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Category") },
+                            label = { Text("Category (Optional)") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth()
                         )
@@ -579,11 +579,12 @@ fun TransactionEntrySheet(
 
                 Button(
                     onClick = {
+                        val finalMerchant = if (type == TransactionType.EXPENSE && merchant.isBlank()) "Quick Expense" else merchant
                         onConfirm(
                             type,
                             amount.toDoubleOrNull() ?: 0.0,
                             selectedDateIso,
-                            merchant,
+                            finalMerchant,
                             note,
                             selectedItemId,
                             selectedIncomeStreamId

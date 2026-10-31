@@ -744,14 +744,14 @@ fun Material3MultiDatePickerDialog(
                                                 if (anchorDate.isBlank()) false 
                                                 else {
                                                     val anchor = LocalDate.parse(anchorDate)
-                                                    java.time.temporal.ChronoUnit.DAYS.between(anchor, date) % 7 == 0L
+                                                    Math.floorMod(java.time.temporal.ChronoUnit.DAYS.between(anchor, date), 7L) == 0L
                                                 }
                                             }
                                             "BI_WEEKLY" -> {
                                                 if (anchorDate.isBlank()) false 
                                                 else {
                                                     val anchor = LocalDate.parse(anchorDate)
-                                                    java.time.temporal.ChronoUnit.DAYS.between(anchor, date) % 14 == 0L
+                                                    Math.floorMod(java.time.temporal.ChronoUnit.DAYS.between(anchor, date), 14L) == 0L
                                                 }
                                             }
                                             else -> selectedDays.contains(dayNumber)

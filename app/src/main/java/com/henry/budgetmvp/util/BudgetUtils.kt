@@ -100,10 +100,18 @@ fun calculatePayDaysForMonth(
                     var current = anchor
                     val startOfMonth = currentYearMonth.atDay(1)
                     val endOfMonth = currentYearMonth.atEndOfMonth()
-                    while (current.isAfter(endOfMonth)) current = current.minusDays(interval)
-                    while (current.isBefore(startOfMonth)) current = current.plusDays(interval)
+
+                    // Step 1: Rewind current until strictly before startOfMonth
+                    while (current >= startOfMonth) {
+                        current = current.minusDays(interval)
+                    }
+
+                    // Step 2: Step forward into currentYearMonth
+                    current = current.plusDays(interval)
                     while (!current.isAfter(endOfMonth)) {
-                        if (!current.isBefore(startOfMonth)) { days.add(current.dayOfMonth) }
+                        if (!current.isBefore(startOfMonth)) {
+                            days.add(current.dayOfMonth)
+                        }
                         current = current.plusDays(interval)
                     }
                     days

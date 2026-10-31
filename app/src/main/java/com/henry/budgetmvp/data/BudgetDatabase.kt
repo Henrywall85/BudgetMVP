@@ -84,26 +84,90 @@ interface BudgetDao {
         items: List<EnvelopeItem>,
         transactions: List<BudgetTransaction>
     ) {
-        // 1. Insert Income Streams
-        income.forEach { upsertIncomeStream(it) }
-
-        // 2. Insert Categories First
-        categories.forEach { upsertCategory(it) }
-        val validCategoryIds = categories.map { it.id }.toSet()
-
-        // 3. Filter Items to only those with valid Category parents
-        val validItems = items.filter { it.categoryId.isNotBlank() && validCategoryIds.contains(it.categoryId) }
-        validItems.forEach { upsertEnvelopeItem(it) }
-        val validItemIds = validItems.map { it.id }.toSet()
-
-        // 4. Sanitize Transactions so missing item references become null
-        val sanitizedTransactions = transactions.map { tx ->
-            if (tx.itemId != null && !validItemIds.contains(tx.itemId)) {
-                tx.copy(itemId = null)
-            } else {
-                tx
+        // 1. Deduplicate Income Streams by (householdId, monthYear, sourceName)
+        val deduplicatedIncome = income
+            .groupBy { Triple(it.householdId, it.monthYear, it.sourceName.trim().lowercase()) }
+            .map { (_, group) ->
+                group.maxByOrNull { it.monthlyAmount } ?: group.first()
             }
+
+        val duplicateIncomeIdsToDelete = income.map { it.id }.toSet() - deduplicatedIncome.map { it.id }.toSet()
+
+        deduplicatedIncome.forEach { upsertIncomeStream(it) }
+        income.filter { duplicateIncomeIdsToDelete.contains(it.id) }.forEach { deleteIncomeStream(it) }
+
+        // 2. Deduplicate Categories by (householdId, monthYear, name)
+        val categoryIdRemap = mutableMapOf<String, String>()
+        val deduplicatedCategories = mutableListOf<BudgetCategory>()
+
+        categories
+            .groupBy { Triple(it.householdId, it.monthYear, it.name.trim().lowercase()) }
+            .forEach { (_, group) ->
+                val primaryCat = group.first()
+                deduplicatedCategories.add(primaryCat)
+                group.forEach { dupCat ->
+                    if (dupCat.id != primaryCat.id) {
+                        categoryIdRemap[dupCat.id] = primaryCat.id
+                    }
+                }
+            }
+
+        val duplicateCatIdsToDelete = categories.map { it.id }.toSet() - deduplicatedCategories.map { it.id }.toSet()
+
+        deduplicatedCategories.forEach { upsertCategory(it) }
+        categories.filter { duplicateCatIdsToDelete.contains(it.id) }.forEach { deleteCategory(it) }
+
+        val validCategoryIds = deduplicatedCategories.map { it.id }.toSet()
+
+        // 3. Remap EnvelopeItems categoryId to primaryCat.id, then deduplicate EnvelopeItems
+        val remappedItems = items.map { item ->
+            val remappedCatId = categoryIdRemap[item.categoryId] ?: item.categoryId
+            item.copy(categoryId = remappedCatId)
+        }.filter { it.categoryId.isNotBlank() && validCategoryIds.contains(it.categoryId) }
+
+        val itemIdRemap = mutableMapOf<String, String>()
+        val deduplicatedItems = mutableListOf<EnvelopeItem>()
+
+        remappedItems
+            .groupBy { Triple(it.categoryId, it.monthYear, it.name.trim().lowercase()) }
+            .forEach { (_, group) ->
+                val primaryItem = group.maxByOrNull { it.targetAmount } ?: group.first()
+                deduplicatedItems.add(primaryItem)
+                group.forEach { dupItem ->
+                    if (dupItem.id != primaryItem.id) {
+                        itemIdRemap[dupItem.id] = primaryItem.id
+                    }
+                }
+            }
+
+        val duplicateItemIdsToDelete = remappedItems.map { it.id }.toSet() - deduplicatedItems.map { it.id }.toSet()
+
+        deduplicatedItems.forEach { upsertEnvelopeItem(it) }
+        remappedItems.filter { duplicateItemIdsToDelete.contains(it.id) }.forEach { deleteEnvelopeItem(it) }
+
+        val validItemIds = deduplicatedItems.map { it.id }.toSet()
+
+        // 4. Remap Transactions to valid primary itemId and incomeStreamId
+        val sanitizedTransactions = transactions.map { tx ->
+            val remappedItemId = tx.itemId?.let { itemIdRemap[it] ?: it }
+            val finalItemId = if (remappedItemId != null && validItemIds.contains(remappedItemId)) remappedItemId else null
+
+            val remappedStreamId = tx.incomeStreamId?.let { streamId ->
+                if (duplicateIncomeIdsToDelete.contains(streamId)) {
+                    val dupStream = income.find { it.id == streamId }
+                    if (dupStream != null) {
+                        deduplicatedIncome.find { 
+                            it.householdId == dupStream.householdId && 
+                            it.monthYear == dupStream.monthYear && 
+                            it.sourceName.equals(dupStream.sourceName, ignoreCase = true) 
+                        }?.id
+                    } else null
+                } else streamId
+            }
+
+            tx.copy(itemId = finalItemId, incomeStreamId = remappedStreamId)
         }
+
         sanitizedTransactions.forEach { upsertTransaction(it) }
     }
 }

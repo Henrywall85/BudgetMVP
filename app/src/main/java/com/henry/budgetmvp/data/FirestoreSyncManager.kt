@@ -15,7 +15,18 @@ class FirestoreSyncManager(private val db: FirebaseFirestore) {
             try {
                 val hDocs = db.collection("incomeStreams").whereEqualTo("householdId", householdId).get().await().toObjects<IncomeStream>()
                 val uDocs = db.collection("incomeStreams").whereEqualTo("userId", userId).get().await().toObjects<IncomeStream>()
-                (hDocs + uDocs).distinctBy { it.id }
+                val allDocs = (hDocs + uDocs).distinctBy { it.id }
+
+                val deduplicated = allDocs
+                    .groupBy { Triple(it.householdId, it.monthYear, it.sourceName.trim().lowercase()) }
+                    .map { (_, group) -> group.maxByOrNull { it.monthlyAmount } ?: group.first() }
+
+                val duplicates = allDocs.toSet() - deduplicated.toSet()
+                duplicates.forEach { dup ->
+                    try { db.collection("incomeStreams").document(dup.id).delete() } catch (ignored: Exception) {}
+                }
+
+                deduplicated
             } catch (e: Exception) {
                 android.util.Log.e("BudgetSync", "Error fetching income: ${e.message}")
                 emptyList<IncomeStream>()
@@ -26,7 +37,18 @@ class FirestoreSyncManager(private val db: FirebaseFirestore) {
             try {
                 val hDocs = db.collection("categories").whereEqualTo("householdId", householdId).get().await().toObjects<BudgetCategory>()
                 val uDocs = db.collection("categories").whereEqualTo("userId", userId).get().await().toObjects<BudgetCategory>()
-                (hDocs + uDocs).distinctBy { it.id }
+                val allDocs = (hDocs + uDocs).distinctBy { it.id }
+
+                val deduplicated = allDocs
+                    .groupBy { Triple(it.householdId, it.monthYear, it.name.trim().lowercase()) }
+                    .map { (_, group) -> group.first() }
+
+                val duplicates = allDocs.toSet() - deduplicated.toSet()
+                duplicates.forEach { dup ->
+                    try { db.collection("categories").document(dup.id).delete() } catch (ignored: Exception) {}
+                }
+
+                deduplicated
             } catch (e: Exception) {
                 android.util.Log.e("BudgetSync", "Error fetching categories: ${e.message}")
                 emptyList<BudgetCategory>()
@@ -37,7 +59,18 @@ class FirestoreSyncManager(private val db: FirebaseFirestore) {
             try {
                 val hDocs = db.collection("envelopeItems").whereEqualTo("householdId", householdId).get().await().toObjects<EnvelopeItem>()
                 val uDocs = db.collection("envelopeItems").whereEqualTo("userId", userId).get().await().toObjects<EnvelopeItem>()
-                (hDocs + uDocs).distinctBy { it.id }
+                val allDocs = (hDocs + uDocs).distinctBy { it.id }
+
+                val deduplicated = allDocs
+                    .groupBy { Triple(it.householdId, it.monthYear, Pair(it.categoryId, it.name.trim().lowercase())) }
+                    .map { (_, group) -> group.maxByOrNull { it.targetAmount } ?: group.first() }
+
+                val duplicates = allDocs.toSet() - deduplicated.toSet()
+                duplicates.forEach { dup ->
+                    try { db.collection("envelopeItems").document(dup.id).delete() } catch (ignored: Exception) {}
+                }
+
+                deduplicated
             } catch (e: Exception) {
                 android.util.Log.e("BudgetSync", "Error fetching items: ${e.message}")
                 emptyList<EnvelopeItem>()

@@ -191,7 +191,7 @@ fun IncomeDetailsCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = if (monthlyGoal > 0) "Goal: $${"%,.2f".format(monthlyGoal)} ($${"%,.0f".format(stream.monthlyAmount)}/check)" else "No Monthly Goal",
+                        text = if (monthlyGoal > 0) "Goal: $${"%,.2f".format(monthlyGoal)}" else "No Monthly Goal",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -250,7 +250,7 @@ fun IncomeDetailSheet(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "$payDaysCount check${if (payDaysCount > 1) "s" else ""} @ $${"%,.0f".format(stream.monthlyAmount)} / check",
+                            text = "$payDaysCount Paycheck${if (payDaysCount > 1) "s" else ""} Scheduled",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -420,7 +420,7 @@ fun IncomeEntrySheet(
                     onValueChange = { input ->
                         if (input.count { it.toString() == "." } <= 1 && input.all { it.isDigit() || it.toString() == "." }) { amount = input }
                     },
-                    label = { Text("Paycheck Goal (Amount Per Check)") },
+                    label = { Text("Paycheck Amount") },
                     placeholder = { Text("$0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
@@ -526,7 +526,7 @@ fun IncomeEntrySheet(
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
                                     Text(
-                                        text = "$previewPayDaysCount check${if (previewPayDaysCount > 1) "s" else ""} @ $${"%,.0f".format(typedAmount)}",
+                                        text = "$previewPayDaysCount Paycheck${if (previewPayDaysCount > 1) "s" else ""}",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary,

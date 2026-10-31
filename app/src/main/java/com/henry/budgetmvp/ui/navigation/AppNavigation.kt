@@ -35,7 +35,9 @@ import com.henry.budgetmvp.data.StatusMessage
 import com.henry.budgetmvp.data.MessageType
 import com.henry.budgetmvp.viewmodel.AuthViewModel
 import com.henry.budgetmvp.viewmodel.BudgetViewModel
+import com.henry.budgetmvp.util.getMonthlyGoalForMonth
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
@@ -172,8 +174,10 @@ fun AppNavigation(
             .sumOf { it.amount }
     }
 
-    val totalPlannedIncomeForMonth = remember(streams) {
-        streams.sumOf { it.monthlyAmount }
+    val currentYearMonth = remember(currentDate) { YearMonth.from(currentDate) }
+
+    val totalPlannedIncomeForMonth = remember(streams, currentYearMonth) {
+        streams.sumOf { it.getMonthlyGoalForMonth(currentYearMonth) }
     }
 
     val totalSpentExpenses = remember(filteredTransactions) {
@@ -767,6 +771,7 @@ fun AppNavigation(
             IncomeDetailSheet(
                 stream = selectedStreamForDetail!!,
                 transactions = filteredTransactions.filter { it.incomeStreamId == selectedStreamForDetail!!.id },
+                currentDate = currentDate,
                 onDismiss = { showIncomeDetailSheet = false },
                 onEditStream = {
                     editingStream = selectedStreamForDetail

@@ -213,13 +213,18 @@ fun IncomeDetailsCard(
 fun IncomeDetailSheet(
     stream: IncomeStream,
     transactions: List<BudgetTransaction>,
+    currentDate: LocalDate = LocalDate.now(),
     onDismiss: () -> Unit,
     onEditStream: () -> Unit,
     onEditTransaction: (BudgetTransaction) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val currentYM = remember(currentDate) { YearMonth.from(currentDate) }
+    val monthlyGoal = remember(stream, currentYM) { stream.getMonthlyGoalForMonth(currentYM) }
+    val payDaysCount = remember(stream, currentYM) { stream.getPayDaysCountForMonth(currentYM) }
+
     val receivedAmount = transactions.sumOf { it.amount }
-    val remaining = stream.monthlyAmount - receivedAmount
+    val remaining = monthlyGoal - receivedAmount
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -238,11 +243,18 @@ fun IncomeDetailSheet(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = stream.sourceName,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column {
+                        Text(
+                            text = stream.sourceName,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "$payDaysCount check${if (payDaysCount > 1) "s" else ""} @ $${"%,.0f".format(stream.monthlyAmount)} / check",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     IconButton(onClick = onEditStream) {
                         Icon(Lucide.EllipsisVertical, contentDescription = "Edit Source")
                     }
@@ -258,17 +270,17 @@ fun IncomeDetailSheet(
                         modifier = Modifier.padding(16.dp).fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        if (stream.monthlyAmount > 0) {
+                        if (monthlyGoal > 0) {
                             Column {
                                 Text("Planned", style = MaterialTheme.typography.labelSmall)
-                                Text("$${"%,.2f".format(stream.monthlyAmount)}", fontWeight = FontWeight.Bold)
+                                Text("$${"%,.2f".format(monthlyGoal)}", fontWeight = FontWeight.Bold)
                             }
                         }
                         Column {
-                            Text(if (stream.monthlyAmount > 0) "Received" else "Total Received", style = MaterialTheme.typography.labelSmall)
+                            Text(if (monthlyGoal > 0) "Received" else "Total Received", style = MaterialTheme.typography.labelSmall)
                             Text("$${"%,.2f".format(receivedAmount)}", fontWeight = FontWeight.Bold, color = Color(0xFF059669))
                         }
-                        if (stream.monthlyAmount > 0) {
+                        if (monthlyGoal > 0) {
                             Column {
                                 Text("Pending", style = MaterialTheme.typography.labelSmall)
                                 Text(

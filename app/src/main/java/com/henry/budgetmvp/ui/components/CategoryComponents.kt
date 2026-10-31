@@ -697,24 +697,13 @@ fun ItemDetailSheet(
                                             color = Color(0xFF0284C7).copy(alpha = 0.12f),
                                             shape = RoundedCornerShape(6.dp)
                                         ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = "$${"%,.2f".format(targetAmountState)}",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = FontWeight.Black,
-                                                    color = Color(0xFF0284C7)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Icon(
-                                                    Lucide.Pencil,
-                                                    contentDescription = "Edit Amount",
-                                                    tint = Color(0xFF0284C7),
-                                                    modifier = Modifier.size(12.dp)
-                                                )
-                                            }
+                                            Text(
+                                                text = "$${"%,.2f".format(targetAmountState)}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Black,
+                                                color = Color(0xFF0284C7),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
                                         }
                                     }
                                 }

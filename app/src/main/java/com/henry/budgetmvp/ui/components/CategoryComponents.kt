@@ -25,6 +25,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import android.app.Activity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -600,6 +604,16 @@ fun ItemDetailSheet(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = { WindowInsets(0) }
     ) {
+        val view = LocalView.current
+        SideEffect {
+            val window = (view.context as? Activity)?.window
+            val dialogWindow = (view.parent as? DialogWindowProvider)?.window
+            val targetWindow = dialogWindow ?: window
+            targetWindow?.let { win ->
+                WindowCompat.getInsetsController(win, view).isAppearanceLightStatusBars = false
+            }
+        }
+
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             Box(modifier = Modifier.fillMaxSize().imePadding()) {
                 LazyColumn(

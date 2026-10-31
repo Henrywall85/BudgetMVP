@@ -682,10 +682,7 @@ fun ItemDetailSheet(
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable { editMode = true }
-                                            .padding(vertical = 2.dp, horizontal = 2.dp)
+                                        modifier = Modifier.padding(vertical = 2.dp)
                                     ) {
                                         Text(
                                             text = "$${"%,.2f".format(spentAmount)} spent of ",

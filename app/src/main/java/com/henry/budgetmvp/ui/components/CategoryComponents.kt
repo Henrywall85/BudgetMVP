@@ -684,9 +684,7 @@ fun ItemDetailSheet(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
-                                            .clickable {
-                                                editMode = true
-                                            }
+                                            .clickable { editMode = true }
                                             .padding(vertical = 2.dp, horizontal = 2.dp)
                                     ) {
                                         Text(
@@ -695,56 +693,28 @@ fun ItemDetailSheet(
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
-                                        
-                                        if (!editMode) {
-                                            Surface(
-                                                color = Color(0xFF0284C7).copy(alpha = 0.12f),
-                                                shape = RoundedCornerShape(6.dp)
+                                        Surface(
+                                            color = Color(0xFF0284C7).copy(alpha = 0.12f),
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Text(
-                                                        text = "$${"%,.2f".format(targetAmountState)}",
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        fontWeight = FontWeight.Black,
-                                                        color = Color(0xFF0284C7)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Icon(
-                                                        Lucide.Pencil,
-                                                        contentDescription = "Edit Amount",
-                                                        tint = Color(0xFF0284C7),
-                                                        modifier = Modifier.size(12.dp)
-                                                    )
-                                                }
-                                            }
-                                        } else {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("$", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Black, color = Color(0xFF0284C7))
-                                                BasicTextField(
-                                                    value = textFieldValue,
-                                                    onValueChange = { textFieldValue = it },
-                                                    modifier = Modifier
-                                                        .width(IntrinsicSize.Min)
-                                                        .focusRequester(focusRequester),
-                                                    textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                                        fontWeight = FontWeight.Black,
-                                                        color = Color(0xFF0284C7)
-                                                    ),
-                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                                                    keyboardActions = KeyboardActions(onDone = {
-                                                        val newAmount = textFieldValue.text.toDoubleOrNull() ?: targetAmountState
-                                                        targetAmountState = newAmount
-                                                        onUpdateTargetAmount(newAmount)
-                                                        editMode = false
-                                                    }),
-                                                    cursorBrush = SolidColor(Color(0xFF0284C7)),
-                                                    singleLine = true
+                                                Text(
+                                                    text = "$${"%,.2f".format(targetAmountState)}",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Black,
+                                                    color = Color(0xFF0284C7)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Icon(
+                                                    Lucide.Pencil,
+                                                    contentDescription = "Edit Amount",
+                                                    tint = Color(0xFF0284C7),
+                                                    modifier = Modifier.size(12.dp)
                                                 )
                                             }
-                                            LaunchedEffect(Unit) { focusRequester.requestFocus() }
                                         }
                                     }
                                 }
@@ -776,25 +746,77 @@ fun ItemDetailSheet(
                         ) {
                             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                                 // Row 1: Planned Budget Amount
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            editMode = true
+                                if (!editMode) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { editMode = true }
+                                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                            Icon(Lucide.DollarSign, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(22.dp))
+                                            Spacer(modifier = Modifier.width(16.dp))
+                                            Column {
+                                                Text("Planned Budget", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                                Text("$${"%,.2f".format(targetAmountState)}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF0284C7), fontWeight = FontWeight.Bold)
+                                            }
                                         }
-                                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                        Icon(Lucide.DollarSign, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(22.dp))
-                                        Spacer(modifier = Modifier.width(16.dp))
-                                        Column {
-                                            Text("Planned Budget", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
-                                            Text("$${"%,.2f".format(targetAmountState)}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF0284C7), fontWeight = FontWeight.Bold)
+                                        Icon(Lucide.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                } else {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color(0xFF0284C7).copy(alpha = 0.08f))
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                            Icon(Lucide.DollarSign, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(22.dp))
+                                            Spacer(modifier = Modifier.width(16.dp))
+                                            Column {
+                                                Text("Planned Budget", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text("$", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Black, color = Color(0xFF0284C7))
+                                                    Spacer(modifier = Modifier.width(2.dp))
+                                                    BasicTextField(
+                                                        value = textFieldValue,
+                                                        onValueChange = { textFieldValue = it },
+                                                        modifier = Modifier
+                                                            .fillMaxWidth(0.7f)
+                                                            .focusRequester(focusRequester),
+                                                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                                            fontWeight = FontWeight.Black,
+                                                            color = Color(0xFF0284C7)
+                                                        ),
+                                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                                                        keyboardActions = KeyboardActions(onDone = {
+                                                            val newAmount = textFieldValue.text.toDoubleOrNull() ?: targetAmountState
+                                                            targetAmountState = newAmount
+                                                            onUpdateTargetAmount(newAmount)
+                                                            editMode = false
+                                                        }),
+                                                        cursorBrush = SolidColor(Color(0xFF0284C7)),
+                                                        singleLine = true
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                val newAmount = textFieldValue.text.toDoubleOrNull() ?: targetAmountState
+                                                targetAmountState = newAmount
+                                                onUpdateTargetAmount(newAmount)
+                                                editMode = false
+                                            }
+                                        ) {
+                                            Icon(Lucide.Check, contentDescription = "Confirm", tint = Color(0xFF0284C7), modifier = Modifier.size(22.dp))
                                         }
                                     }
-                                    Icon(Lucide.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    LaunchedEffect(Unit) { focusRequester.requestFocus() }
                                 }
 
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))

@@ -64,7 +64,8 @@ fun BudgetScreen(
     onNavigateToUncategorizedTransactions: () -> Unit = {},
     isUncategorizedBubblesOpen: Boolean = false,
     onToggleUncategorizedBubbles: (Boolean) -> Unit = {},
-    bottomPadding: Dp = 0.dp
+    bottomPadding: Dp = 0.dp,
+    allTransactions: List<BudgetTransaction> = emptyList()
 ) {
     var viewMode by remember { mutableStateOf(0) } // 0: Planned, 1: Spent, 2: Remaining
 
@@ -82,8 +83,9 @@ fun BudgetScreen(
         categoriesWithItems.sumOf { cat -> cat.items.sumOf { it.targetAmount } }
     }
 
-    val uncategorizedTransactions = remember(filteredTransactions) {
-        filteredTransactions.filter { it.type == TransactionType.EXPENSE && (it.itemId == null || it.itemId.isBlank()) }
+    val uncategorizedTransactions = remember(allTransactions, filteredTransactions) {
+        val sourceList = if (allTransactions.isNotEmpty()) allTransactions else filteredTransactions
+        sourceList.filter { it.type == TransactionType.EXPENSE && (it.itemId == null || it.itemId.isBlank()) }
     }
     val totalUncategorizedSpent = remember(uncategorizedTransactions) {
         uncategorizedTransactions.sumOf { it.amount }
@@ -464,20 +466,22 @@ fun BudgetScreen(
             )
         }
 
+        val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
         val fabBottomPaddingAnimated by animateDpAsState(
-            targetValue = if (isUncategorizedBubblesOpen) 24.dp else bottomPadding + 16.dp,
+            targetValue = if (isUncategorizedBubblesOpen) navBarInset + 12.dp else bottomPadding + 16.dp,
             animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
             label = "fab_bottom_padding"
         )
 
         val fabSizeAnimated by animateDpAsState(
-            targetValue = if (isUncategorizedBubblesOpen) 42.dp else 52.dp,
+            targetValue = if (isUncategorizedBubblesOpen) 44.dp else 52.dp,
             animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
             label = "fab_size"
         )
 
         val bubblesBottomPaddingAnimated by animateDpAsState(
-            targetValue = if (isUncategorizedBubblesOpen) 78.dp else bottomPadding + 78.dp,
+            targetValue = if (isUncategorizedBubblesOpen) navBarInset + 72.dp else bottomPadding + 78.dp,
             animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
             label = "bubbles_bottom_padding"
         )
@@ -493,9 +497,10 @@ fun BudgetScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = bubblesBottomPaddingAnimated, start = 16.dp, end = 16.dp)
+                    .padding(bottom = bubblesBottomPaddingAnimated)
             ) {
                 androidx.compose.foundation.lazy.LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {

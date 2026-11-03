@@ -1,5 +1,8 @@
 package com.henry.budgetmvp.ui.screens
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -69,35 +72,46 @@ fun CalendarScreen(
 
     val today = LocalDate.now()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        // 1. Month Switcher
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    Column(modifier = Modifier.fillMaxSize()) {
+        // 1. SQUARED EMERALD BANNER (Matching Home & Budget Pages)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF059669))
+                .statusBarsPadding()
+                .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp)
         ) {
-            IconButton(onClick = onPreviousMonth) {
-                Icon(Lucide.ChevronLeft, contentDescription = "Previous", tint = MaterialTheme.colorScheme.primary)
-            }
-            Text(
-                text = currentDate.format(DateTimeFormatter.ofPattern("MMMM yyyy")).uppercase(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.primary
-            )
-            IconButton(onClick = onNextMonth) {
-                Icon(Lucide.ChevronRight, contentDescription = "Next", tint = MaterialTheme.colorScheme.primary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onPreviousMonth, modifier = Modifier.size(32.dp)) {
+                    Icon(Lucide.ChevronLeft, contentDescription = "Previous Month", tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+                Text(
+                    text = currentDate.format(DateTimeFormatter.ofPattern("MMMM yyyy")).uppercase(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White
+                )
+                IconButton(onClick = onNextMonth, modifier = Modifier.size(32.dp)) {
+                    Icon(Lucide.ChevronRight, contentDescription = "Next Month", tint = Color.White, modifier = Modifier.size(20.dp))
+                }
             }
         }
 
-        // --- MODE SWITCHER ---
-        SingleChoiceSegmentedButtonRow(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
         ) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // --- MODE SWITCHER ---
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            ) {
             SegmentedButton(
                 selected = calendarViewMode == 0,
                 onClick = { calendarViewMode = 0 },
@@ -217,14 +231,27 @@ fun CalendarScreen(
                 }
             }
 
-            // 3. Calendar Grid
+            // 3. Calendar Grid (Collapsible Week / Month)
+            var isCalendarExpanded by remember { mutableStateOf(false) }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
-                Column(modifier = Modifier.padding(8.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .animateContentSize(animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing))
+                ) {
+                    // Header Row (Clickable to Expand / Collapse)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isCalendarExpanded = !isCalendarExpanded }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         val daysOfWeek = listOf("S", "M", "T", "W", "T", "F", "S")
                         daysOfWeek.forEach { day ->
                             Text(
@@ -236,10 +263,26 @@ fun CalendarScreen(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )
                         }
+                        Icon(
+                            imageVector = if (isCalendarExpanded) Lucide.ChevronUp else Lucide.ChevronDown,
+                            contentDescription = if (isCalendarExpanded) "Collapse to Week" else "Expand to Month",
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
                     val totalSlots = (daysInMonth + firstDayOfWeek + 6) / 7 * 7
-                    for (row in 0 until (totalSlots / 7)) {
+                    val totalRows = (totalSlots / 7).coerceAtLeast(1)
+
+                    val activeTargetDay = selectedDay ?: if (isCurrentMonth) today.dayOfMonth else 1
+                    val activeSlotIndex = (activeTargetDay + firstDayOfWeek - 1).coerceAtLeast(0)
+                    val activeRowIndex = (activeSlotIndex / 7).coerceIn(0, totalRows - 1)
+
+                    val rowsToDisplay = if (isCalendarExpanded) (0 until totalRows).toList() else listOf(activeRowIndex)
+
+                    for (row in rowsToDisplay) {
                         Row(modifier = Modifier.fillMaxWidth()) {
                             for (col in 0 until 7) {
                                 val slotIndex = row * 7 + col
@@ -379,7 +422,15 @@ fun CalendarScreen(
                         }
                     }
                 } else {
-                    items(filteredTimelineEntries) { entry ->
+                    items(
+                        items = filteredTimelineEntries,
+                        key = { entry ->
+                            when (entry) {
+                                is CalendarEventEntry.BillEntry -> "bill_${entry.item.id}"
+                                is CalendarEventEntry.PaydayEntry -> "payday_${entry.sourceName}_${entry.paydayNum}"
+                            }
+                        }
+                    ) { entry ->
                         when (entry) {
                             is CalendarEventEntry.BillEntry -> {
                                 val item = entry.item
@@ -667,8 +718,7 @@ fun CalendarScreen(
         }
     }
 }
-
-
+}
 
 private fun getCombinedStatusColor(items: List<EnvelopeItem>, spentMap: Map<String, Double>, today: LocalDate, currentDate: LocalDate): Color {
     val statuses = items.map { getItemStatusColor(it, spentMap[it.id] ?: 0.0, today, currentDate) }

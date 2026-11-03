@@ -9,10 +9,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -28,6 +36,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionsScreen(
     transactions: List<BudgetTransaction>,
@@ -39,9 +48,14 @@ fun TransactionsScreen(
     onClearAllTransactions: () -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var showSearchField by remember { mutableStateOf(false) }
     var filterType by remember { mutableIntStateOf(0) } // 0: All, 1: Expenses, 2: Income
     var selectedMonthFilter by remember(currentDate) { mutableStateOf<YearMonth?>(YearMonth.from(currentDate)) }
     var showClearDialog by remember { mutableStateOf(false) }
+    var monthDropdownExpanded by remember { mutableStateOf(false) }
+    var showFilterSheet by remember { mutableStateOf(false) }
+    var tempFilterType by remember(filterType) { mutableIntStateOf(filterType) }
+    var tempMonthFilter by remember(selectedMonthFilter) { mutableStateOf(selectedMonthFilter) }
 
     val allItems = remember(categoriesWithItems) { categoriesWithItems.flatMap { it.items }.associateBy { it.id } }
     val allStreams = remember(incomeStreams) { incomeStreams.associateBy { it.id } }
@@ -59,7 +73,7 @@ fun TransactionsScreen(
 
     val filteredList = remember(transactions, searchQuery, filterType, selectedMonthFilter) {
         transactions.filter { tx ->
-            val matchesMonth = if (selectedMonthFilter == null) true else {
+            val matchesMonth = if (selectedMonthFilter == null || filterType == 3) true else {
                 try {
                     YearMonth.from(LocalDate.parse(tx.date)) == selectedMonthFilter
                 } catch (e: Exception) {
@@ -97,7 +111,9 @@ fun TransactionsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (showSearchField) Modifier.blur(6.dp) else Modifier),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(bottom = 170.dp)
         ) {
@@ -108,7 +124,7 @@ fun TransactionsScreen(
                         .fillMaxWidth()
                         .background(Color(0xFF059669))
                         .statusBarsPadding()
-                        .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 14.dp)
+                        .padding(start = 20.dp, end = 12.dp, top = 4.dp, bottom = 14.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -122,120 +138,63 @@ fun TransactionsScreen(
                             color = Color.White
                         )
 
-                        if (transactions.isNotEmpty()) {
-                            IconButton(onClick = { showClearDialog = true }) {
-                                Icon(
-                                    imageVector = Lucide.Trash2,
-                                    contentDescription = "Clear All Transactions",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 2. Search Bar & Filter Chips Area
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search merchant, note, or envelope...", style = MaterialTheme.typography.bodyMedium) },
-                        leadingIcon = { Icon(Lucide.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Lucide.X, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Search Icon Button
+                            IconButton(onClick = { showSearchField = !showSearchField }) {
+                                Box {
+                                    Icon(
+                                        imageVector = Lucide.Search,
+                                        contentDescription = "Search",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    if (searchQuery.isNotBlank()) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFFEF6C00))
+                                                .align(Alignment.TopEnd)
+                                        )
+                                    }
                                 }
                             }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
 
-                    // Month Selector Chips Row
-                    androidx.compose.foundation.lazy.LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(availableMonths) { ym ->
-                            val isSelected = selectedMonthFilter == ym
-                            val monthLabel = ym.format(DateTimeFormatter.ofPattern("MMM yyyy"))
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { selectedMonthFilter = ym },
-                                leadingIcon = {
+                            // Filter Icon Button
+                            IconButton(onClick = {
+                                tempFilterType = filterType
+                                tempMonthFilter = selectedMonthFilter
+                                showFilterSheet = true
+                            }) {
+                                Box {
                                     Icon(
-                                        Lucide.Calendar,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(14.dp),
-                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        imageVector = Lucide.SlidersHorizontal,
+                                        contentDescription = "Filter Settings",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
                                     )
-                                },
-                                label = { Text(monthLabel, style = MaterialTheme.typography.labelSmall, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
-                            )
-                        }
+                                    if (filterType != 0 || selectedMonthFilter != YearMonth.from(currentDate)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFFEF6C00))
+                                                .align(Alignment.TopEnd)
+                                        )
+                                    }
+                                }
+                            }
 
-                        item {
-                            val isAllSelected = selectedMonthFilter == null
-                            FilterChip(
-                                selected = isAllSelected,
-                                onClick = { selectedMonthFilter = null },
-                                label = { Text("All History", style = MaterialTheme.typography.labelSmall, fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal) },
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
-                            )
-                        }
-                    }
-
-                    val expenseCount = filteredList.count { it.type == TransactionType.EXPENSE }
-                    val incomeCount = filteredList.count { it.type == TransactionType.INCOME }
-                    val uncategorizedCount = transactions.count { it.type == TransactionType.EXPENSE && (it.itemId == null || it.itemId.isBlank()) }
-
-                    androidx.compose.foundation.lazy.LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        item {
-                            FilterChip(
-                                selected = filterType == 0,
-                                onClick = { filterType = 0 },
-                                label = { Text("All (${filteredList.size})", style = MaterialTheme.typography.labelSmall) },
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
-                            )
-                        }
-                        item {
-                            FilterChip(
-                                selected = filterType == 1,
-                                onClick = { filterType = 1 },
-                                label = { Text("Expenses ($expenseCount)", style = MaterialTheme.typography.labelSmall) },
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
-                            )
-                        }
-                        item {
-                            FilterChip(
-                                selected = filterType == 2,
-                                onClick = { filterType = 2 },
-                                label = { Text("Income ($incomeCount)", style = MaterialTheme.typography.labelSmall) },
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFF059669).copy(alpha = 0.15f), selectedLabelColor = Color(0xFF059669))
-                            )
-                        }
-                        if (uncategorizedCount > 0) {
-                            item {
-                                FilterChip(
-                                    selected = filterType == 3,
-                                    onClick = { filterType = 3 },
-                                    label = { Text("Uncategorized ($uncategorizedCount)", style = MaterialTheme.typography.labelSmall) },
-                                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFFEF6C00).copy(alpha = 0.15f), selectedLabelColor = Color(0xFFEF6C00))
-                                )
+                            // Clear All Trash Icon
+                            if (transactions.isNotEmpty()) {
+                                IconButton(onClick = { showClearDialog = true }) {
+                                    Icon(
+                                        imageVector = Lucide.Trash2,
+                                        contentDescription = "Clear All Transactions",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -417,6 +376,118 @@ fun TransactionsScreen(
         ) {
             Icon(Lucide.Plus, contentDescription = "Add Transaction", modifier = Modifier.size(24.dp))
         }
+
+        if (showSearchField) {
+            val searchFocusRequester = remember { FocusRequester() }
+            val keyboardController = LocalSoftwareKeyboardController.current
+
+            LaunchedEffect(Unit) {
+                searchFocusRequester.requestFocus()
+                keyboardController?.show()
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .clickable {
+                            keyboardController?.hide()
+                            showSearchField = false
+                        }
+                )
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.Center)
+                        .padding(horizontal = 24.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                    border = BorderStroke(1.5.dp, Color(0xFF059669).copy(alpha = 0.8f))
+                ) {
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it.replace("\n", "").replace("\r", "") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(searchFocusRequester),
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFF1E293B)),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = {
+                                keyboardController?.hide()
+                                showSearchField = false
+                            }
+                        ),
+                        decorationBox = { innerTextField ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 18.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Lucide.Search,
+                                    contentDescription = null,
+                                    tint = Color(0xFF059669),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (searchQuery.isEmpty()) {
+                                        Text(
+                                            text = "Search transactions...",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = Color(0xFF1E293B).copy(alpha = 0.5f),
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                                if (searchQuery.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(
+                                        onClick = { searchQuery = "" },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Lucide.X,
+                                            contentDescription = "Clear",
+                                            tint = Color(0xFF059669),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                } else {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(
+                                        onClick = {
+                                            keyboardController?.hide()
+                                            showSearchField = false
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Lucide.X,
+                                            contentDescription = "Close Search",
+                                            tint = Color(0xFF059669),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
     }
 
     if (showClearDialog) {
@@ -441,5 +512,136 @@ fun TransactionsScreen(
                 }
             }
         )
+    }
+
+    if (showFilterSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showFilterSheet = false },
+            sheetState = sheetState,
+            contentWindowInsets = { WindowInsets(0) }
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Filter Transactions",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    TextButton(onClick = {
+                        tempFilterType = 0
+                        tempMonthFilter = YearMonth.from(currentDate)
+                    }) {
+                        Text("Reset", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // 1. Transaction Type Filter
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("TRANSACTION TYPE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = tempFilterType == 0,
+                            onClick = { tempFilterType = 0 },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 4),
+                            label = { Text("All", style = MaterialTheme.typography.labelSmall) }
+                        )
+                        SegmentedButton(
+                            selected = tempFilterType == 1,
+                            onClick = { tempFilterType = 1 },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 4),
+                            label = { Text("Expenses", style = MaterialTheme.typography.labelSmall) }
+                        )
+                        SegmentedButton(
+                            selected = tempFilterType == 2,
+                            onClick = { tempFilterType = 2 },
+                            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 4),
+                            label = { Text("Income", style = MaterialTheme.typography.labelSmall) }
+                        )
+                        SegmentedButton(
+                            selected = tempFilterType == 3,
+                            onClick = { tempFilterType = 3 },
+                            shape = SegmentedButtonDefaults.itemShape(index = 3, count = 4),
+                            label = { Text("Uncategorized", style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+                }
+
+                // 2. Month Selector
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("TIME PERIOD", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+                    
+                    Box {
+                        Surface(
+                            onClick = { monthDropdownExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Lucide.Calendar, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = tempMonthFilter?.format(DateTimeFormatter.ofPattern("MMMM yyyy")) ?: "All History",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                }
+                                Icon(Lucide.ChevronDown, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = monthDropdownExpanded,
+                            onDismissRequest = { monthDropdownExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("All History", fontWeight = if (tempMonthFilter == null) FontWeight.Bold else FontWeight.Normal) },
+                                onClick = {
+                                    tempMonthFilter = null
+                                    monthDropdownExpanded = false
+                                }
+                            )
+                            availableMonths.forEach { ym ->
+                                val monthLabel = ym.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
+                                DropdownMenuItem(
+                                    text = { Text(monthLabel, fontWeight = if (tempMonthFilter == ym) FontWeight.Bold else FontWeight.Normal) },
+                                    onClick = {
+                                        tempMonthFilter = ym
+                                        monthDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        filterType = tempFilterType
+                        selectedMonthFilter = tempMonthFilter
+                        showFilterSheet = false
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Apply Filters")
+                }
+            }
+        }
     }
 }

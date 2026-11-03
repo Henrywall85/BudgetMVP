@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -11,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -342,6 +344,7 @@ fun TransactionEntrySheet(
     targetTransaction: BudgetTransaction? = null,
     categoriesWithItems: List<CategoryWithItems>,
     incomeStreams: List<com.henry.budgetmvp.data.IncomeStream>,
+    allTransactions: List<BudgetTransaction> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (TransactionType, Double, String, String, String, String?, String?) -> Unit,
     onDelete: (() -> Unit)? = null
@@ -365,6 +368,28 @@ fun TransactionEntrySheet(
                 categoriesWithItems.find { cat -> cat.items.any { it.id == targetTransaction.itemId } }
             } else null
         )
+    }
+
+    val merchantCategoryMap = remember(allTransactions) {
+        allTransactions.asSequence()
+            .filter { it.type == TransactionType.EXPENSE && it.merchant.isNotBlank() && !it.itemId.isNullOrBlank() }
+            .groupBy { it.merchant.trim().lowercase() }
+            .mapValues { (_, txs) -> txs.last().itemId!! }
+    }
+
+    var isAutoCategorized by remember { mutableStateOf(false) }
+
+    val typedAmount = amount.toDoubleOrNull() ?: 0.0
+
+    val possibleDuplicateTx = remember(typedAmount, merchant, selectedDateIso, allTransactions, targetTransaction) {
+        if (typedAmount <= 0 || merchant.isBlank()) null else {
+            allTransactions.find { tx ->
+                tx.id != targetTransaction?.id &&
+                tx.amount == typedAmount &&
+                tx.date == selectedDateIso &&
+                tx.merchant.equals(merchant.trim(), ignoreCase = true)
+            }
+        }
     }
 
     val focusManager = LocalFocusManager.current
@@ -404,6 +429,41 @@ fun TransactionEntrySheet(
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
+
+                if (possibleDuplicateTx != null) {
+                    Surface(
+                        color = Color(0xFFEF6C00).copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, Color(0xFFEF6C00).copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Lucide.CircleAlert,
+                                contentDescription = "Warning",
+                                tint = Color(0xFFEF6C00),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "POSSIBLE DUPLICATE TRANSACTION",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFEF6C00)
+                                )
+                                Text(
+                                    text = "A $${"%,.2f".format(possibleDuplicateTx.amount)} transaction for '${possibleDuplicateTx.merchant}' already exists on this date.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
 
                 // Type Toggle
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
@@ -453,7 +513,18 @@ fun TransactionEntrySheet(
                 if (type == TransactionType.EXPENSE) {
                     OutlinedTextField(
                         value = merchant,
-                        onValueChange = { merchant = it },
+                        onValueChange = { input ->
+                            merchant = input
+                            val matchedItemId = merchantCategoryMap[input.trim().lowercase()]
+                            if (matchedItemId != null) {
+                                val cat = categoriesWithItems.find { c -> c.items.any { it.id == matchedItemId } }
+                                if (cat != null) {
+                                    selectedCategory = cat
+                                    selectedItemId = matchedItemId
+                                    isAutoCategorized = true
+                                }
+                            }
+                        },
                         label = { Text("Merchant") },
                         placeholder = { Text("e.g., Walmart, Amazon") },
                         modifier = Modifier.fillMaxWidth(),
@@ -464,6 +535,27 @@ fun TransactionEntrySheet(
                         keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
                         singleLine = true
                     )
+
+                    if (isAutoCategorized && selectedCategory != null) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Lucide.Sparkles, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Auto-filled: ${selectedCategory?.category?.name ?: ""}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
 
                 if (type == TransactionType.INCOME) {

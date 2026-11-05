@@ -9,13 +9,22 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
+import androidx.compose.ui.zIndex
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +68,7 @@ fun BudgetScreen(
     onAddItem: (String) -> Unit,
     onEditItem: (com.henry.budgetmvp.data.EnvelopeItem) -> Unit,
     onToggleCategory: (String) -> Unit,
+    onUpdateAllCategoryOrders: (List<com.henry.budgetmvp.data.BudgetCategory>) -> Unit = {},
     onAddTransaction: () -> Unit = {},
     onEditTransaction: (BudgetTransaction) -> Unit = {},
     onNavigateToUncategorizedTransactions: () -> Unit = {},
@@ -77,6 +87,8 @@ fun BudgetScreen(
     }
     val todayDay = remember { LocalDate.now().dayOfMonth }
     val yearMonth = remember(currentDate) { YearMonth.from(currentDate) }
+
+    val localCategories = remember(categoriesWithItems.size) { androidx.compose.runtime.mutableStateListOf<CategoryWithItems>().apply { addAll(categoriesWithItems) } }
     
     val totalIncome = remember(streams, yearMonth) { streams.sumOf { it.getMonthlyGoalForMonth(yearMonth) } }
     val totalPlanned = remember(categoriesWithItems) {
@@ -213,8 +225,20 @@ fun BudgetScreen(
         }
 
         // (3) SCROLLABLE CONTENT AREA
+        val lazyListState = rememberLazyListState()
+        val reorderableLazyListState = rememberReorderableLazyListState(lazyListState) { from, to ->
+            val fromCatIndex = localCategories.indexOfFirst { it.category.id == from.key }
+            val toCatIndex = localCategories.indexOfFirst { it.category.id == to.key }
+            if (fromCatIndex >= 0 && toCatIndex >= 0 && fromCatIndex != toCatIndex) {
+                localCategories.apply {
+                    add(toCatIndex, removeAt(fromCatIndex))
+                }
+            }
+        }
+
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(
+                state = lazyListState,
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 contentPadding = PaddingValues(bottom = 170.dp)
@@ -362,65 +386,96 @@ fun BudgetScreen(
                         }
                     }
                 } else {
-                    items(categoriesWithItems, key = { it.category.id }) { categoryWithItems ->
-                        val isExpanded = !collapsedCategories.contains(categoryWithItems.category.id)
+                    items(localCategories, key = { it.category.id }) { categoryWithItems ->
+                        ReorderableItem(
+                            state = reorderableLazyListState,
+                            key = categoryWithItems.category.id
+                        ) { isDragging ->
+                            val isExpanded = !collapsedCategories.contains(categoryWithItems.category.id)
 
-                        Card(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                        ) {
-                            Column(modifier = Modifier.padding(bottom = if (isExpanded) 8.dp else 0.dp)) {
-                                val catPlanned = categoryWithItems.items.sumOf { it.targetAmount }
-                                val catSpent = categoryWithItems.items.sumOf { spentByItemId[it.id] ?: 0.0 }
+                            val cardScale by animateFloatAsState(
+                                targetValue = if (isDragging) 1.03f else 1f,
+                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                                label = "card_drag_scale"
+                            )
+                            val cardElevation by animateDpAsState(
+                                targetValue = if (isDragging) 12.dp else 2.dp,
+                                label = "card_drag_elevation"
+                            )
 
-                                CategoryHeader(
-                                    category = categoryWithItems.category,
-                                    isExpanded = isExpanded,
-                                    plannedAmount = catPlanned,
-                                    spentAmount = catSpent,
-                                    viewMode = viewMode,
-                                    onToggleExpand = { onToggleCategory(categoryWithItems.category.id) },
-                                    onEditCategory = { onEditCategory(categoryWithItems.category) }
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .animateItem()
+                                    .longPressDraggableHandle(
+                                        onDragStopped = {
+                                            val finalCategories = localCategories.map { it.category }
+                                            onUpdateAllCategoryOrders(finalCategories)
+                                        }
+                                    )
+                                    .graphicsLayer {
+                                        scaleX = cardScale
+                                        scaleY = cardScale
+                                    },
+                                shape = RoundedCornerShape(20.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = cardElevation),
+                                border = BorderStroke(
+                                    if (isDragging) 2.dp else 1.dp,
+                                    if (isDragging) Color(0xFF059669) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                                 )
+                            ) {
+                                Column(modifier = Modifier.padding(bottom = if (isExpanded) 8.dp else 0.dp)) {
+                                    val catPlanned = categoryWithItems.items.sumOf { it.targetAmount }
+                                    val catSpent = categoryWithItems.items.sumOf { spentByItemId[it.id] ?: 0.0 }
 
-                                if (isExpanded) {
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(horizontal = 0.dp),
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                    CategoryHeader(
+                                        category = categoryWithItems.category,
+                                        isExpanded = isExpanded,
+                                        plannedAmount = catPlanned,
+                                        spentAmount = catSpent,
+                                        viewMode = viewMode,
+                                        onToggleExpand = { onToggleCategory(categoryWithItems.category.id) },
+                                        onEditCategory = { onEditCategory(categoryWithItems.category) }
                                     )
 
-                                    categoryWithItems.items.forEachIndexed { index, item ->
-                                        val spentAmount = spentByItemId[item.id] ?: 0.0
-
-                                        EnvelopeItemRow(
-                                            item = item,
-                                            spentAmount = spentAmount,
-                                            todayDay = todayDay,
-                                            viewMode = viewMode,
-                                            onClick = { onEditItem(item) }
+                                    if (isExpanded) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(horizontal = 0.dp),
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                         )
-                                        if (index < categoryWithItems.items.lastIndex) {
-                                            HorizontalDivider(
-                                                modifier = Modifier.padding(horizontal = 16.dp),
-                                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+
+                                        categoryWithItems.items.forEachIndexed { index, item ->
+                                            val spentAmount = spentByItemId[item.id] ?: 0.0
+
+                                            EnvelopeItemRow(
+                                                item = item,
+                                                spentAmount = spentAmount,
+                                                todayDay = todayDay,
+                                                viewMode = viewMode,
+                                                onClick = { onEditItem(item) }
                                             )
+                                            if (index < categoryWithItems.items.lastIndex) {
+                                                HorizontalDivider(
+                                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                                )
+                                            }
                                         }
-                                    }
-                                    
-                                    Box(
-                                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        TextButton(
-                                            onClick = { onAddItem(categoryWithItems.category.id) },
-                                            modifier = Modifier.fillMaxWidth()
+                                        
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Lucide.Plus, contentDescription = null, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text("Add Item", style = MaterialTheme.typography.labelLarge)
+                                            TextButton(
+                                                onClick = { onAddItem(categoryWithItems.category.id) },
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Icon(Lucide.Plus, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("Add Item", style = MaterialTheme.typography.labelLarge)
+                                            }
                                         }
                                     }
                                 }
@@ -444,24 +499,23 @@ fun BudgetScreen(
                             }
                         }
                     }
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Version $versionName",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
-            }
-            
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Version $versionName",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
         }
 
         if (isSyncing) {
             LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
+                modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.secondary
             )
         }

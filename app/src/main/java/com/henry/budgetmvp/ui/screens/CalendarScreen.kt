@@ -5,6 +5,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -211,23 +212,54 @@ fun CalendarScreen(
             }
 
             // 2. Summary Card
+            val remainingToFund = (totalBillsAmount - totalPaidAmount).coerceAtLeast(0.0)
+            val fundingRatio = if (totalBillsAmount > 0) (totalPaidAmount / totalBillsAmount).coerceIn(0.0, 1.0).toFloat() else 0f
+
             Card(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text("Monthly Bills", style = MaterialTheme.typography.labelSmall)
-                        Text("$${"%,.2f".format(totalBillsAmount)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Monthly Bills", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("$${"%,.2f".format(totalBillsAmount)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Surface(
+                                color = Color(0xFF059669).copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = "${(fundingRatio * 100).toInt()}% Funded",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF059669),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Remaining to Fund", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("$${"%,.2f".format(remainingToFund)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = if (remainingToFund > 0) Color(0xFFEF6C00) else Color(0xFF059669))
+                        }
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Funded/Paid", style = MaterialTheme.typography.labelSmall)
-                        Text("$${"%,.2f".format(totalPaidAmount)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
-                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    LinearProgressIndicator(
+                        progress = { fundingRatio },
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
+                        color = Color(0xFF059669),
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                 }
             }
 
@@ -295,8 +327,13 @@ fun CalendarScreen(
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(
                                             if (selectedDay == day) MaterialTheme.colorScheme.primaryContainer 
-                                            else if (isCurrentMonth && day == today.dayOfMonth) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                                            else if (isCurrentMonth && day == today.dayOfMonth) Color(0xFF059669).copy(alpha = 0.1f)
                                             else Color.Transparent
+                                        )
+                                        .then(
+                                            if (isCurrentMonth && day == today.dayOfMonth && selectedDay != day) {
+                                                Modifier.border(1.5.dp, Color(0xFF059669), RoundedCornerShape(8.dp))
+                                            } else Modifier
                                         )
                                         .clickable(enabled = day in 1..daysInMonth) { 
                                             selectedDay = if (selectedDay == day) null else day 
@@ -452,11 +489,31 @@ fun CalendarScreen(
                                             Spacer(modifier = Modifier.width(12.dp))
                                             Column {
                                                 Text(item.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
-                                                Text(
-                                                    text = "Due Day ${item.dueDay}${getOrdinalSuffix(item.dueDay ?: 0)}",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Surface(
+                                                    color = when {
+                                                        isFunded -> Color(0xFF059669).copy(alpha = 0.15f)
+                                                        urgencyColor == Color(0xFFDC2626) -> Color(0xFFDC2626).copy(alpha = 0.15f)
+                                                        else -> Color(0xFFEF6C00).copy(alpha = 0.15f)
+                                                    },
+                                                    shape = RoundedCornerShape(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = when {
+                                                            isFunded -> "PAID"
+                                                            urgencyColor == Color(0xFFDC2626) -> "OVERDUE"
+                                                            else -> "DUE DAY ${item.dueDay}${getOrdinalSuffix(item.dueDay ?: 0)}"
+                                                        },
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = when {
+                                                            isFunded -> Color(0xFF059669)
+                                                            urgencyColor == Color(0xFFDC2626) -> Color(0xFFDC2626)
+                                                            else -> Color(0xFFEF6C00)
+                                                        },
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
                                             }
                                         }
 
@@ -493,10 +550,19 @@ fun CalendarScreen(
                                     border = BorderStroke(1.dp, if (entry.isReceived) Color(0xFF059669).copy(alpha = 0.4f) else Color(0xFF059669).copy(alpha = 0.2f))
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        modifier = Modifier.height(IntrinsicSize.Min).fillMaxWidth()
                                     ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(4.dp)
+                                                .fillMaxHeight()
+                                                .background(Color(0xFF059669))
+                                        )
+                                        Row(
+                                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                             Box(
                                                 modifier = Modifier
@@ -555,7 +621,8 @@ fun CalendarScreen(
                     }
                 }
             }
-        } else {
+        }
+    } else {
             // --- EVERYDOLLAR PAYCHECK PLANNER VIEW ---
             val currentYearMonth = remember(currentDate) { YearMonth.from(currentDate) }
 

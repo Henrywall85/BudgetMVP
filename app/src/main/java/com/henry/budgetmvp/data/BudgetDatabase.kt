@@ -24,7 +24,7 @@ interface BudgetDao {
     suspend fun deleteIncomeStream(stream: IncomeStream)
 
     @Transaction
-    @Query("SELECT * FROM budget_category_table WHERE householdId = :householdId AND monthYear = :monthYear ORDER BY name ASC")
+    @Query("SELECT * FROM budget_category_table WHERE householdId = :householdId AND monthYear = :monthYear ORDER BY displayOrder ASC, name ASC")
     fun getAllCategoriesWithItems(householdId: String, monthYear: String): Flow<List<CategoryWithItems>>
 
     @Query("SELECT * FROM budget_category_table WHERE householdId = :householdId AND monthYear = :monthYear")
@@ -35,6 +35,9 @@ interface BudgetDao {
 
     @Upsert
     suspend fun upsertCategory(category: BudgetCategory)
+
+    @Upsert
+    suspend fun upsertCategories(categories: List<BudgetCategory>)
 
     @Delete
     suspend fun deleteCategory(category: BudgetCategory)
@@ -198,7 +201,7 @@ interface BudgetDao {
 
 @Database(
     entities = [IncomeStream::class, BudgetCategory::class, EnvelopeItem::class, BudgetTransaction::class, UserProfile::class],
-    version = 24,
+    version = 25,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

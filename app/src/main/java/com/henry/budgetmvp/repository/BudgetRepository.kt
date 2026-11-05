@@ -187,6 +187,21 @@ class BudgetRepository @Inject constructor(
         }
     }
 
+    suspend fun saveCategories(categories: List<BudgetCategory>): SyncResult {
+        return try {
+            dao.upsertCategories(categories)
+            if (!NetworkChecker.isNetworkAvailable(context)) return SyncResult.LocalOnly
+            try {
+                categories.forEach { firestore.saveCategory(it) }
+                SyncResult.Synced
+            } catch (ignored: Exception) {
+                SyncResult.LocalOnly
+            }
+        } catch (e: Exception) {
+            SyncResult.Error(e.localizedMessage ?: "Local database error")
+        }
+    }
+
     suspend fun deleteCategory(category: BudgetCategory): SyncResult {
         return try {
             dao.deleteCategory(category)

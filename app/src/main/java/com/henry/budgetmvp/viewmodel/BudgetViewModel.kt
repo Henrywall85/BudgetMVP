@@ -318,15 +318,15 @@ class BudgetViewModel @Inject constructor(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val incomeStreams: Flow<List<IncomeStream>> = _householdId.combine(_selectedMonthYear) { hid, monthYear ->
+    val incomeStreams: StateFlow<List<IncomeStream>> = _householdId.combine(_selectedMonthYear) { hid, monthYear ->
         hid to monthYear
     }.flatMapLatest { (hid, monthYear) ->
         if (hid == null || monthYear == null) flowOf(emptyList()) 
         else repository.getAllIncomeStreams(hid, monthYear)
-    }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val categoriesWithItems: Flow<List<CategoryWithItems>> = _householdId.combine(_selectedMonthYear) { hid, monthYear ->
+    val categoriesWithItems: StateFlow<List<CategoryWithItems>> = _householdId.combine(_selectedMonthYear) { hid, monthYear ->
         hid to monthYear
     }.flatMapLatest { (hid, monthYear) ->
         if (hid == null || monthYear == null) flowOf(emptyList()) 
@@ -348,17 +348,17 @@ class BudgetViewModel @Inject constructor(
                 )
             )
         }
-    }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val transactions: Flow<List<BudgetTransaction>> = _householdId.flatMapLatest { hid ->
+    val transactions: StateFlow<List<BudgetTransaction>> = _householdId.flatMapLatest { hid ->
         if (hid == null) flowOf(emptyList()) else repository.getAllTransactions(hid)
-    }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val hasAnyBudgetData: Flow<Boolean> = _householdId.flatMapLatest { hid ->
+    val hasAnyBudgetData: StateFlow<Boolean> = _householdId.flatMapLatest { hid ->
         if (hid == null) flowOf(false) else repository.hasAnyBudgetData(hid)
-    }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     fun leaveHousehold() {
         val uid = _userId.value ?: return
@@ -434,6 +434,46 @@ class BudgetViewModel @Inject constructor(
                 e.printStackTrace()
             } finally {
                 _isSyncing.value = false
+            }
+        }
+    }
+
+    fun reorderCategories(category: BudgetCategory, moveUp: Boolean) {
+        val currentList = categoriesWithItems.value
+        val index = currentList.indexOfFirst { it.category.id == category.id }
+        if (index < 0) return
+        val targetIndex = if (moveUp) index - 1 else index + 1
+        if (targetIndex !in currentList.indices) return
+
+        viewModelScope.launch {
+            _isSyncing.value = true
+            try {
+                currentList.forEachIndexed { i, catWithItems ->
+                    val newOrder = when (i) {
+                        index -> targetIndex
+                        targetIndex -> index
+                        else -> i
+                    }
+                    val updatedCat = catWithItems.category.copy(displayOrder = newOrder)
+                    handleSyncResult(repository.saveCategory(updatedCat))
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
+    fun updateAllCategoryOrders(categories: List<BudgetCategory>) {
+        viewModelScope.launch {
+            try {
+                val updatedList = categories.mapIndexed { index, cat ->
+                    cat.copy(displayOrder = index)
+                }
+                repository.saveCategories(updatedList)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }

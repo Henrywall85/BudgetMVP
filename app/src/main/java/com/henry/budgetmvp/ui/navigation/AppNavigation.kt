@@ -93,11 +93,11 @@ fun AppNavigation(
     val authLoading by authViewModel.loading.collectAsState()
     val authError by authViewModel.error.collectAsState()
     
-    val streams by viewModel.incomeStreams.collectAsState(initial = emptyList())
-    val categoriesWithItems by viewModel.categoriesWithItems.collectAsState(initial = emptyList())
-    val transactions by viewModel.transactions.collectAsState(initial = emptyList())
+    val streams by viewModel.incomeStreams.collectAsState()
+    val categoriesWithItems by viewModel.categoriesWithItems.collectAsState()
+    val transactions by viewModel.transactions.collectAsState()
     val pendingInvites by viewModel.pendingInvites.collectAsState()
-    val hasAnyBudgetData by viewModel.hasAnyBudgetData.collectAsState(initial = false)
+    val hasAnyBudgetData by viewModel.hasAnyBudgetData.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
@@ -628,6 +628,9 @@ fun AppNavigation(
                                         } else {
                                             collapsedCategories.add(categoryId)
                                         }
+                                    },
+                                    onUpdateAllCategoryOrders = { categories ->
+                                        viewModel.updateAllCategoryOrders(categories)
                                     },
                                     onAddTransaction = {
                                         editingTransaction = null

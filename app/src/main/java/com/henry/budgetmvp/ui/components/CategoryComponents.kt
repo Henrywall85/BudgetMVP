@@ -131,9 +131,17 @@ fun CategoryHeader(
                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                 )
             }
-            Row {
-                IconButton(onClick = onEditCategory) {
-                    Icon(Lucide.EllipsisVertical, contentDescription = "Edit Category", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onEditCategory,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Lucide.EllipsisVertical,
+                        contentDescription = "Edit Category",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                    )
                 }
             }
         }

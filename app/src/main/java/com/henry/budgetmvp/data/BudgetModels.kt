@@ -26,7 +26,8 @@ data class BudgetCategory(
     val userId: String = "",
     val householdId: String = "",
     val monthYear: String = "", // e.g. "2026-08"
-    val name: String = ""
+    val name: String = "",
+    val displayOrder: Int = 0
 )
 
 @Entity(

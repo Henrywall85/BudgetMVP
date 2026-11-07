@@ -55,7 +55,8 @@ fun HomeScreen(
     onNavigateToBudget: () -> Unit,
     onNavigateToCalendar: () -> Unit,
     onOpenMenu: () -> Unit,
-    onMarkPaid: (com.henry.budgetmvp.data.EnvelopeItem, Double) -> Unit
+    onMarkPaid: (com.henry.budgetmvp.data.EnvelopeItem, Double) -> Unit,
+    versionName: String = "1.0"
 ) {
     val today = LocalDate.now()
     var showInsightsSheet by remember { mutableStateOf(false) }
@@ -698,6 +699,15 @@ fun HomeScreen(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
+            Text(
+                text = "BudgetQuest v$versionName",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+            )
         }
     }
 }

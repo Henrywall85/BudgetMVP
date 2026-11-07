@@ -562,6 +562,7 @@ fun AppNavigation(
                                     categoriesWithItems = categoriesWithItems,
                                     filteredTransactions = filteredTransactions,
                                     incomeStreams = streams,
+                                    versionName = versionName,
                                     onNavigateToBudget = { currentScreen = Screen.BUDGET },
                                     onNavigateToCalendar = { currentScreen = Screen.CALENDAR },
                                     onOpenMenu = { coroutineScope.launch { drawerState.open() } },

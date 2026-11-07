@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 424 910" width="424" height="910" fill="none">
+  <defs>
+    <!-- Device Drop Shadow -->
+    <filter id="s21-shadow" x="-8%" y="-4%" width="116%" height="112%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.22" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.10" />
+    </filter>
+
+    <!-- Armor Aluminum Frame Gradient (Phantom Silver/Violet frame aesthetic) -->
+    <linearGradient id="aluminum-frame" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4C4C52" />
+      <stop offset="25%" stop-color="#2D2D31" />
+      <stop offset="50%" stop-color="#55555C" />
+      <stop offset="75%" stop-color="#222225" />
+      <stop offset="100%" stop-color="#3C3C42" />
+    </linearGradient>
+
+    <!-- Display Bezel Rim -->
+    <linearGradient id="bezel-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E1E20" />
+      <stop offset="100%" stop-color="#0E0E10" />
+    </linearGradient>
+  </defs>
+
+  <!-- Hardware Buttons (S21+ has all buttons clustered on the right edge) -->
+  <!-- Right: Volume Rocker (Single long bar) -->
+  <rect x="413" y="190" width="4" height="88" rx="2" fill="#2E2E33" stroke="#4C4C52" stroke-width="0.75" />
+  <!-- Right: Side / Power Key -->
+  <rect x="413" y="305" width="4" height="46" rx="2" fill="#2E2E33" stroke="#4C4C52" stroke-width="0.75" />
+
+  <!-- Outer Phone Body (Aluminum Rim) -->
+  <rect x="7" y="10" width="406" height="890" rx="44" fill="url(#aluminum-frame)" filter="url(#s21-shadow)" stroke="#6E6E75" stroke-width="1.2" />
+
+  <!-- Uniform Minimal Display Bezel -->
+  <rect x="9.5" y="12.5" width="401" height="885" rx="41.5" fill="url(#bezel-gradient)" />
+
+  <!-- Display Canvas Area (Solid Pure White - 384 x 868 px canvas) -->
+  <rect id="screen-display-area" x="15" y="18" width="390" height="874" rx="36" fill="#FFFFFF" />
+
+  <!-- Top Micro-Speaker Ear-piece Slit -->
+  <rect x="180" y="14" width="60" height="2" rx="1" fill="#111113" opacity="0.8" />
+
+  <!-- Infinity-O Center Punch-Hole Camera -->
+  <g id="infinity-o-camera">
+    <!-- Outer Camera Rim Cutout -->
+    <circle cx="210" cy="38" r="7.5" fill="#000000" />
+    <!-- Camera Sensor Aperture -->
+    <circle cx="210" cy="38" r="5" fill="#0B0B12" />
+    <!-- Blue/Violet Lens Coating Reflection -->
+    <circle cx="211" cy="37" r="2.2" fill="#222B45" opacity="0.8" />
+    <!-- Specular Highlight Dot -->
+    <circle cx="211.5" cy="36.5" r="0.8" fill="#FFFFFF" opacity="0.7" />
+  </g>
+</svg>

@@ -19,6 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
@@ -511,6 +514,7 @@ fun CalendarScreen(
                                                     Text(
                                                         text = when {
                                                             isFunded -> "PAID"
+                                                            spent > 0.001 -> "PARTIAL ($${"%,.0f".format(spent)}/$${"%,.0f".format(item.targetAmount)})"
                                                             urgencyColor == Color(0xFFDC2626) -> "OVERDUE"
                                                             else -> "DUE DAY ${item.dueDay}${getOrdinalSuffix(item.dueDay ?: 0)}"
                                                         },
@@ -803,22 +807,52 @@ fun CalendarScreen(
 
     if (itemToMarkPaid != null) {
         val markItem = itemToMarkPaid!!
+        val spentSoFar = spentByItemId[markItem.id] ?: 0.0
+        val remainingDue = (markItem.targetAmount - spentSoFar).coerceAtLeast(0.0)
+
+        var amountInput by remember(markItem) {
+            mutableStateOf(if (remainingDue > 0) "%.2f".format(remainingDue) else "%.2f".format(markItem.targetAmount))
+        }
+
         AlertDialog(
             onDismissRequest = { itemToMarkPaid = null },
             icon = { Icon(Lucide.Check, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(28.dp)) },
-            title = { Text("Confirm Bill Payment", fontWeight = FontWeight.Bold) },
+            title = { Text("Log Bill Payment", fontWeight = FontWeight.Bold) },
             text = {
-                Text("Log payment of $${"%,.2f".format(markItem.targetAmount)} for '${markItem.name}' and mark as Paid?")
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Enter the actual amount paid for '${markItem.name}':", style = MaterialTheme.typography.bodyMedium)
+
+                    OutlinedTextField(
+                        value = amountInput,
+                        onValueChange = { amountInput = it },
+                        label = { Text("Amount Paid ($)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        singleLine = true
+                    )
+
+                    if (spentSoFar > 0) {
+                        Text(
+                            text = "Previously paid: $${"%,.2f".format(spentSoFar)} of $${"%,.2f".format(markItem.targetAmount)} planned",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             },
             confirmButton = {
+                val parsedAmount = amountInput.toDoubleOrNull() ?: 0.0
                 Button(
                     onClick = {
-                        onMarkPaid(markItem, markItem.targetAmount)
-                        itemToMarkPaid = null
+                        if (parsedAmount > 0) {
+                            onMarkPaid(markItem, parsedAmount)
+                            itemToMarkPaid = null
+                        }
                     },
+                    enabled = parsedAmount > 0,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669))
                 ) {
-                    Text("Confirm Payment")
+                    Text("Log Payment")
                 }
             },
             dismissButton = {

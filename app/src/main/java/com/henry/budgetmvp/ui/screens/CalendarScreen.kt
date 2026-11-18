@@ -485,7 +485,7 @@ fun CalendarScreen(
                             is CalendarEventEntry.BillEntry -> {
                                 val item = entry.item
                                 val spent = spentByItemId[item.id] ?: 0.0
-                                val isFunded = spent >= item.targetAmount - 0.001
+                                val isFunded = spent > 0.001
                                 val urgencyColor = getItemStatusColor(item, spent, today, currentDate)
                                 Card(
                                     modifier = Modifier.fillMaxWidth().clickable { onEditItem(item) },
@@ -514,7 +514,6 @@ fun CalendarScreen(
                                                     Text(
                                                         text = when {
                                                             isFunded -> "PAID"
-                                                            spent > 0.001 -> "PARTIAL ($${"%,.0f".format(spent)}/$${"%,.0f".format(item.targetAmount)})"
                                                             urgencyColor == Color(0xFFDC2626) -> "OVERDUE"
                                                             else -> "DUE DAY ${item.dueDay}${getOrdinalSuffix(item.dueDay ?: 0)}"
                                                         },
@@ -539,13 +538,7 @@ fun CalendarScreen(
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             IconButton(
-                                                onClick = {
-                                                    if (isFunded) {
-                                                        onMarkPaid(item, item.targetAmount)
-                                                    } else {
-                                                        itemToMarkPaid = item
-                                                    }
-                                                },
+                                                onClick = { onMarkPaid(item, item.targetAmount) },
                                                 colors = IconButtonDefaults.filledIconButtonColors(
                                                     containerColor = if (isFunded) Color(0xFF059669).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
                                                 )

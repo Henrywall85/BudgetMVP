@@ -547,18 +547,18 @@ fun AppNavigation(
                                         LocalDate.now().toString()
                                     }
 
-                                    val newTx = BudgetTransaction(
+                                    editingTransaction = BudgetTransaction(
                                         id = UUID.randomUUID().toString(),
                                         userId = user?.uid ?: "",
                                         householdId = userProfile?.householdId ?: "",
                                         type = TransactionType.EXPENSE,
-                                        amount = remainingAmount,
+                                        amount = if (remainingAmount > 0) remainingAmount else item.targetAmount,
                                         date = txDate,
                                         merchant = item.name,
                                         note = "Bill Payment",
                                         itemId = item.id
                                     )
-                                    viewModel.saveTransaction(newTx)
+                                    showTransactionEditSheet = true
                                 }
 
                                 HomeScreen(
@@ -669,18 +669,18 @@ fun AppNavigation(
                                         LocalDate.now().toString()
                                     }
 
-                                    val newTx = BudgetTransaction(
+                                    editingTransaction = BudgetTransaction(
                                         id = UUID.randomUUID().toString(),
                                         userId = user?.uid ?: "",
                                         householdId = userProfile?.householdId ?: "",
                                         type = TransactionType.EXPENSE,
-                                        amount = remainingAmount,
+                                        amount = if (remainingAmount > 0) remainingAmount else item.targetAmount,
                                         date = txDate,
                                         merchant = item.name,
                                         note = "Bill Payment",
                                         itemId = item.id
                                     )
-                                    viewModel.saveTransaction(newTx)
+                                    showTransactionEditSheet = true
                                 }
 
                                 CalendarScreen(

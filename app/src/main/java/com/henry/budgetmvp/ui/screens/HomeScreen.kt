@@ -185,12 +185,29 @@ fun HomeScreen(
                         style = MaterialTheme.typography.titleSmall,
                         color = Color.White.copy(alpha = 0.85f)
                     )
-                    Text(
-                        text = userName.ifBlank { "Henrywall85" },
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = userName.ifBlank { "Henrywall85" },
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        if (com.henry.budgetmvp.BuildConfig.DEBUG) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                color = Color.White.copy(alpha = 0.25f),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = "DEV",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Circular Glassmorphic Hamburger Icon Button

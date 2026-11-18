@@ -58,17 +58,27 @@ fun CalendarScreen(
     onMarkPaid: (EnvelopeItem, Double) -> Unit,
 ) {
     var calendarViewMode by remember { mutableIntStateOf(0) } // 0: Calendar Grid, 1: Paycheck Planner
+    var itemToMarkPaid by remember { mutableStateOf<EnvelopeItem?>(null) }
 
     val allItemsWithDueDates = remember(categoriesWithItems) {
         categoriesWithItems.flatMap { it.items }.filter { it.dueDay != null }
     }
 
-    // O(1) instant lookup maps
-    val spentByItemId = remember(filteredTransactions) {
-        filteredTransactions.asSequence()
-            .filter { it.type == TransactionType.EXPENSE && it.itemId != null }
-            .groupBy { it.itemId!! }
-            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+    // Match spent by itemId OR matching Merchant name
+    val spentByItemId = remember(filteredTransactions, allItemsWithDueDates) {
+        val map = mutableMapOf<String, Double>()
+        allItemsWithDueDates.forEach { item ->
+            val totalSpent = filteredTransactions.asSequence()
+                .filter { tx ->
+                    tx.type == TransactionType.EXPENSE && (
+                        tx.itemId == item.id ||
+                        (tx.merchant.isNotBlank() && tx.merchant.trim().equals(item.name.trim(), ignoreCase = true))
+                    )
+                }
+                .sumOf { it.amount }
+            map[item.id] = totalSpent
+        }
+        map
     }
 
     val today = LocalDate.now()
@@ -525,7 +535,13 @@ fun CalendarScreen(
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             IconButton(
-                                                onClick = { onMarkPaid(item, item.targetAmount) },
+                                                onClick = {
+                                                    if (isFunded) {
+                                                        onMarkPaid(item, item.targetAmount)
+                                                    } else {
+                                                        itemToMarkPaid = item
+                                                    }
+                                                },
                                                 colors = IconButtonDefaults.filledIconButtonColors(
                                                     containerColor = if (isFunded) Color(0xFF059669).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
                                                 )
@@ -783,6 +799,34 @@ fun CalendarScreen(
                 }
             }
         }
+    }
+
+    if (itemToMarkPaid != null) {
+        val markItem = itemToMarkPaid!!
+        AlertDialog(
+            onDismissRequest = { itemToMarkPaid = null },
+            icon = { Icon(Lucide.Check, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(28.dp)) },
+            title = { Text("Confirm Bill Payment", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Log payment of $${"%,.2f".format(markItem.targetAmount)} for '${markItem.name}' and mark as Paid?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onMarkPaid(markItem, markItem.targetAmount)
+                        itemToMarkPaid = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669))
+                ) {
+                    Text("Confirm Payment")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { itemToMarkPaid = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 }

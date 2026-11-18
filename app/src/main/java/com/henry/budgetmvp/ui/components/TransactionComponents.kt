@@ -516,7 +516,11 @@ fun TransactionEntrySheet(
                         value = merchant,
                         onValueChange = { input ->
                             merchant = input
-                            val matchedItemId = merchantCategoryMap[input.trim().lowercase()]
+                            val trimmed = input.trim().lowercase()
+                            var matchedItemId = merchantCategoryMap[trimmed]
+                            if (matchedItemId == null && trimmed.isNotBlank()) {
+                                matchedItemId = categoriesWithItems.flatMap { it.items }.find { it.name.trim().lowercase() == trimmed }?.id
+                            }
                             if (matchedItemId != null) {
                                 val cat = categoriesWithItems.find { c -> c.items.any { it.id == matchedItemId } }
                                 if (cat != null) {

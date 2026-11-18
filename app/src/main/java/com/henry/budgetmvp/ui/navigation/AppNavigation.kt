@@ -863,6 +863,13 @@ fun AppNavigation(
                         selectedItemForDetail = updated
                     }
                 },
+                onUpdateName = { newName ->
+                    selectedItemForDetail?.let { item ->
+                        val updated = item.copy(name = newName)
+                        viewModel.saveEnvelopeItem(updated)
+                        selectedItemForDetail = updated
+                    }
+                },
                 onDeleteItem = {
                     selectedItemForDetail?.let { item ->
                         viewModel.deleteEnvelopeItem(item)

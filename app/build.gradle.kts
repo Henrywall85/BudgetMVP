@@ -18,13 +18,17 @@ android {
         applicationId = "com.henry.budgetmvp"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        resValue("string", "app_name", "BudgetQuest")
     }
 
     buildTypes {
+        debug {
+            resValue("string", "app_name", "BudgetQuest (Dev)")
+        }
         release {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug")
@@ -32,6 +36,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            resValue("string", "app_name", "BudgetQuest")
         }
     }
     compileOptions {
@@ -41,6 +46,7 @@ android {
     }
     buildFeatures {
         compose = true
+        resValues = true
     }
 }
 

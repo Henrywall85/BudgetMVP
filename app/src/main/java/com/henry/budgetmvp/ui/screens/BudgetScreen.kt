@@ -88,7 +88,7 @@ fun BudgetScreen(
     val todayDay = remember { LocalDate.now().dayOfMonth }
     val yearMonth = remember(currentDate) { YearMonth.from(currentDate) }
 
-    val localCategories = remember(categoriesWithItems.size) { androidx.compose.runtime.mutableStateListOf<CategoryWithItems>().apply { addAll(categoriesWithItems) } }
+    val localCategories = remember { androidx.compose.runtime.mutableStateListOf<CategoryWithItems>().apply { addAll(categoriesWithItems) } }
     
     val totalIncome = remember(streams, yearMonth) { streams.sumOf { it.getMonthlyGoalForMonth(yearMonth) } }
     val totalPlanned = remember(categoriesWithItems) {
@@ -232,6 +232,28 @@ fun BudgetScreen(
             if (fromCatIndex >= 0 && toCatIndex >= 0 && fromCatIndex != toCatIndex) {
                 localCategories.apply {
                     add(toCatIndex, removeAt(fromCatIndex))
+                }
+            }
+        }
+
+        val isAnyDragging = reorderableLazyListState.isAnyItemDragging
+        androidx.compose.runtime.LaunchedEffect(categoriesWithItems, isAnyDragging) {
+            if (!isAnyDragging) {
+                val updatedMap = categoriesWithItems.associateBy { it.category.id }
+                val currentIds = localCategories.map { it.category.id }.toSet()
+                val newIds = categoriesWithItems.map { it.category.id }.toSet()
+
+                if (currentIds == newIds) {
+                    localCategories.indices.forEach { idx ->
+                        val catId = localCategories[idx].category.id
+                        val updated = updatedMap[catId]
+                        if (updated != null && localCategories[idx] != updated) {
+                            localCategories[idx] = updated
+                        }
+                    }
+                } else {
+                    localCategories.clear()
+                    localCategories.addAll(categoriesWithItems)
                 }
             }
         }

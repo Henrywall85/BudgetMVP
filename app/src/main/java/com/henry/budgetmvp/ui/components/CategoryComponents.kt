@@ -590,12 +590,25 @@ fun ItemDetailSheet(
     onEditItem: () -> Unit,
     onUpdateTargetAmount: (Double) -> Unit = {},
     onUpdateDueDay: (Int?) -> Unit = {},
+    onUpdateName: (String) -> Unit = {},
     onDeleteItem: () -> Unit = {},
     onEditTransaction: (BudgetTransaction) -> Unit,
     onAddTransaction: () -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var targetAmountState by remember(item.targetAmount) { mutableDoubleStateOf(item.targetAmount) }
+    var itemNameState by remember(item.name) { mutableStateOf(item.name) }
+    var isRenamingItem by remember { mutableStateOf(false) }
+    var nameTextFieldValue by remember(itemNameState) {
+        mutableStateOf(TextFieldValue(text = itemNameState, selection = TextRange(itemNameState.length)))
+    }
+    val nameFocusRequester = remember { FocusRequester() }
+    
+    LaunchedEffect(isRenamingItem) {
+        if (isRenamingItem) {
+            nameFocusRequester.requestFocus()
+        }
+    }
     
     val spentAmount = transactions.sumOf { it.amount }
     
@@ -726,12 +739,38 @@ fun ItemDetailSheet(
                                 verticalAlignment = Alignment.Top
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = item.name,
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        fontWeight = FontWeight.Black,
-                                        color = MaterialTheme.colorScheme.onBackground
-                                    )
+                                    if (!isRenamingItem) {
+                                        Text(
+                                            text = itemNameState,
+                                            style = MaterialTheme.typography.headlineSmall,
+                                            fontWeight = FontWeight.Black,
+                                            color = MaterialTheme.colorScheme.onBackground,
+                                            modifier = Modifier.clickable { isRenamingItem = true }
+                                        )
+                                    } else {
+                                        BasicTextField(
+                                            value = nameTextFieldValue,
+                                            onValueChange = { nameTextFieldValue = it },
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.9f)
+                                                .focusRequester(nameFocusRequester),
+                                            textStyle = MaterialTheme.typography.headlineSmall.copy(
+                                                fontWeight = FontWeight.Black,
+                                                color = MaterialTheme.colorScheme.onBackground
+                                            ),
+                                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
+                                            keyboardActions = KeyboardActions(onDone = {
+                                                val newName = nameTextFieldValue.text.trim()
+                                                if (newName.isNotBlank()) {
+                                                    itemNameState = newName
+                                                    onUpdateName(newName)
+                                                }
+                                                isRenamingItem = false
+                                            }),
+                                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                            singleLine = true
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,

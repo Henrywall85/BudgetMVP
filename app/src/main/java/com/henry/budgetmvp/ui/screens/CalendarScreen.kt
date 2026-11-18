@@ -869,7 +869,7 @@ private fun getCombinedStatusColor(items: List<EnvelopeItem>, spentMap: Map<Stri
 
 private fun getItemStatusColor(item: EnvelopeItem, spent: Double, today: LocalDate, currentDate: LocalDate): Color {
     val dueDay = item.dueDay ?: return Color.Gray
-    val isFunded = spent >= item.targetAmount - 0.001
+    val isFunded = spent > 0.001
     if (isFunded) return Color(0xFF059669)
     val isCurrentMonth = today.year == currentDate.year && today.month == currentDate.month
     if (!isCurrentMonth) {

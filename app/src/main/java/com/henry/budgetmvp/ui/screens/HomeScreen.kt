@@ -114,13 +114,21 @@ fun HomeScreen(
         count
     }
     
-    // Calculate upcoming bills (Top 3)
-    val upcomingBills = remember(categoriesWithItems, filteredTransactions) {
+    // Calculate upcoming bills due within 7 days (Top 3)
+    val upcomingBills = remember(categoriesWithItems, filteredTransactions, today) {
         categoriesWithItems.flatMap { it.items }
             .filter { item -> 
                 val due = item.dueDay ?: return@filter false
-                val spent = filteredTransactions.filter { it.itemId == item.id }.sumOf { it.amount }
-                due >= today.dayOfMonth && spent < item.targetAmount
+                val spent = filteredTransactions.asSequence()
+                    .filter { tx ->
+                        tx.type == TransactionType.EXPENSE && (
+                            tx.itemId == item.id ||
+                            (tx.merchant.isNotBlank() && tx.merchant.trim().equals(item.name.trim(), ignoreCase = true))
+                        )
+                    }
+                    .sumOf { it.amount }
+                val daysUntil = due - today.dayOfMonth
+                daysUntil in 0..7 && spent < item.targetAmount
             }
             .sortedBy { it.dueDay }
             .take(3)

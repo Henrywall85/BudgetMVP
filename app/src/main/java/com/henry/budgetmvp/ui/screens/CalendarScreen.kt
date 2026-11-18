@@ -308,12 +308,6 @@ fun CalendarScreen(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )
                         }
-                        Icon(
-                            imageVector = if (isCalendarExpanded) Lucide.ChevronUp else Lucide.ChevronDown,
-                            contentDescription = if (isCalendarExpanded) "Collapse to Week" else "Expand to Month",
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                            modifier = Modifier.size(18.dp)
-                        )
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))

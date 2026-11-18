@@ -785,6 +785,7 @@ fun AppNavigation(
         if (showCategorySheet) {
             CategoryEntrySheet(
                 targetCategory = editingCategory,
+                existingCategories = categoriesWithItems.map { it.category },
                 onDismiss = { showCategorySheet = false },
                 onConfirm = { name ->
                     val categoryToSave = editingCategory?.copy(
@@ -809,6 +810,7 @@ fun AppNavigation(
             EnvelopeItemEntrySheet(
                 categoryId = activeCategoryId ?: "",
                 targetItem = editingItem,
+                existingItems = categoriesWithItems.find { it.category.id == activeCategoryId }?.items ?: emptyList(),
                 currentDate = currentDate,
                 onDismiss = { showItemSheet = false },
                 onConfirm = { name, target, dueDay ->

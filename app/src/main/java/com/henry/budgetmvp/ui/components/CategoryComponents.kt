@@ -1249,12 +1249,20 @@ fun ItemDetailSheet(
 @Composable
 fun CategoryEntrySheet(
     targetCategory: BudgetCategory?,
+    existingCategories: List<BudgetCategory> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
     onDelete: () -> Unit
 ) {
     var name by remember { mutableStateOf(targetCategory?.name ?: "") }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val isDuplicateName = remember(name, existingCategories, targetCategory) {
+        val trimmed = name.trim()
+        trimmed.isNotBlank() && existingCategories.any {
+            it.id != targetCategory?.id && it.name.trim().equals(trimmed, ignoreCase = true)
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1277,13 +1285,19 @@ fun CategoryEntrySheet(
                     onValueChange = { name = it },
                     label = { Text("Category Name (e.g., Housing, Food)") },
                     modifier = Modifier.fillMaxWidth(),
+                    isError = isDuplicateName,
+                    supportingText = {
+                        if (isDuplicateName) {
+                            Text("A category named '${name.trim()}' already exists", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     singleLine = true
                 )
 
                 Button(
-                    onClick = { onConfirm(name) },
-                    enabled = name.isNotBlank(),
+                    onClick = { onConfirm(name.trim()) },
+                    enabled = name.isNotBlank() && !isDuplicateName,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (targetCategory != null) "Update Category" else "Save Category")
@@ -1310,6 +1324,7 @@ fun CategoryEntrySheet(
 fun EnvelopeItemEntrySheet(
     categoryId: String,
     targetItem: EnvelopeItem?,
+    existingItems: List<EnvelopeItem> = emptyList(),
     currentDate: LocalDate = LocalDate.now(),
     onDismiss: () -> Unit,
     onConfirm: (String, Double, Int?) -> Unit,
@@ -1318,6 +1333,13 @@ fun EnvelopeItemEntrySheet(
     var name by remember { mutableStateOf(targetItem?.name ?: "") }
     var targetAmount by remember { mutableStateOf(targetItem?.targetAmount?.let { if (it == 0.0) "" else it.toString() } ?: "") }
     var selectedDueDay by remember { mutableStateOf(targetItem?.dueDay) }
+
+    val isDuplicateName = remember(name, existingItems, targetItem) {
+        val trimmed = name.trim()
+        trimmed.isNotBlank() && existingItems.any {
+            it.id != targetItem?.id && it.name.trim().equals(trimmed, ignoreCase = true)
+        }
+    }
 
     var showDatePicker by remember { mutableStateOf(false) }
     
@@ -1339,7 +1361,7 @@ fun EnvelopeItemEntrySheet(
 
     val isFormValid by remember {
         derivedStateOf {
-            name.isNotBlank() && ((targetAmount.toDoubleOrNull() ?: 0.0) > 0)
+            name.isNotBlank() && !isDuplicateName && ((targetAmount.toDoubleOrNull() ?: 0.0) > 0)
         }
     }
 
@@ -1367,6 +1389,12 @@ fun EnvelopeItemEntrySheet(
                     onValueChange = { name = it },
                     label = { Text("Item Name (e.g., Rent, Groceries)") },
                     modifier = Modifier.fillMaxWidth(),
+                    isError = isDuplicateName,
+                    supportingText = {
+                        if (isDuplicateName) {
+                            Text("An item named '${name.trim()}' already exists in this category", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(
                         imeAction = ImeAction.Next,
                         capitalization = KeyboardCapitalization.Words

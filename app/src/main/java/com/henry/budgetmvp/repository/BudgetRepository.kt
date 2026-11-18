@@ -254,6 +254,18 @@ class BudgetRepository @Inject constructor(
 
     suspend fun saveTransaction(transaction: BudgetTransaction): SyncResult {
         return try {
+            val localTxs = dao.getAllLocalTransactionsRaw()
+            val isDuplicate = localTxs.any { existing ->
+                existing.id != transaction.id &&
+                existing.amount == transaction.amount &&
+                existing.merchant.equals(transaction.merchant, ignoreCase = true) &&
+                existing.date == transaction.date &&
+                existing.type == transaction.type
+            }
+            if (isDuplicate) {
+                return SyncResult.Synced
+            }
+
             dao.upsertTransaction(transaction)
             if (!NetworkChecker.isNetworkAvailable(context)) return SyncResult.LocalOnly
             try {

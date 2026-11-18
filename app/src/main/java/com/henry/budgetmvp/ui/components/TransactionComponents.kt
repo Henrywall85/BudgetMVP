@@ -378,6 +378,7 @@ fun TransactionEntrySheet(
     }
 
     var isAutoCategorized by remember { mutableStateOf(false) }
+    var isSubmitting by remember { mutableStateOf(false) }
 
     val typedAmount = amount.toDoubleOrNull() ?: 0.0
 
@@ -669,8 +670,44 @@ fun TransactionEntrySheet(
 
 
 
+                if (possibleDuplicateTx != null) {
+                    Surface(
+                        color = Color(0xFFEF6C00).copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFEF6C00).copy(alpha = 0.4f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Lucide.Info,
+                                contentDescription = "Possible Duplicate",
+                                tint = Color(0xFFEF6C00),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Potential Duplicate Transaction",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFEF6C00)
+                                )
+                                Text(
+                                    text = "You already logged $${"%,.2f".format(possibleDuplicateTx.amount)} at '${possibleDuplicateTx.merchant}' on ${displayDateStr}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Button(
                     onClick = {
+                        if (isSubmitting) return@Button
+                        isSubmitting = true
                         val finalMerchant = if (type == TransactionType.EXPENSE && merchant.isBlank()) "Quick Expense" else merchant
                         onConfirm(
                             type,
@@ -682,7 +719,7 @@ fun TransactionEntrySheet(
                             selectedIncomeStreamId
                         )
                     },
-                    enabled = isFormValid,
+                    enabled = isFormValid && !isSubmitting,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (targetTransaction == null) "Add Transaction" else "Update Transaction")

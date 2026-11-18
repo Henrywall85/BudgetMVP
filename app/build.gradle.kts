@@ -27,6 +27,7 @@ android {
 
     buildTypes {
         debug {
+            applicationIdSuffix = ".debug"
             resValue("string", "app_name", "BudgetQuest (Dev)")
         }
         release {

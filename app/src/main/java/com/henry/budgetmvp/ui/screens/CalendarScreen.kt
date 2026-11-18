@@ -834,24 +834,24 @@ fun CalendarScreen(
 private fun getCombinedStatusColor(items: List<EnvelopeItem>, spentMap: Map<String, Double>, today: LocalDate, currentDate: LocalDate): Color {
     val statuses = items.map { getItemStatusColor(it, spentMap[it.id] ?: 0.0, today, currentDate) }
     return when {
-        statuses.contains(Color(0xFFC62828)) -> Color(0xFFC62828)
+        statuses.contains(Color(0xFFDC2626)) -> Color(0xFFDC2626)
         statuses.contains(Color(0xFFEF6C00)) -> Color(0xFFEF6C00)
-        else -> Color(0xFF2E7D32)
+        else -> Color(0xFF059669)
     }
 }
 
 private fun getItemStatusColor(item: EnvelopeItem, spent: Double, today: LocalDate, currentDate: LocalDate): Color {
     val dueDay = item.dueDay ?: return Color.Gray
     val isFunded = spent >= item.targetAmount - 0.001
-    if (isFunded) return Color(0xFF2E7D32)
+    if (isFunded) return Color(0xFF059669)
     val isCurrentMonth = today.year == currentDate.year && today.month == currentDate.month
     if (!isCurrentMonth) {
-        return if (currentDate.isBefore(today.withDayOfMonth(1))) Color(0xFFC62828) else Color.Gray
+        return if (currentDate.isBefore(today.withDayOfMonth(1))) Color(0xFFDC2626) else Color.Gray
     }
     val daysUntil = dueDay - today.dayOfMonth
     return when {
-        daysUntil < 0 -> Color(0xFFC62828)
-        daysUntil == 0 -> Color(0xFFC62828)
+        daysUntil < 0 -> Color(0xFFDC2626)
+        daysUntil == 0 -> Color(0xFFDC2626)
         daysUntil in 1..5 -> Color(0xFFEF6C00)
         else -> Color.Gray
     }

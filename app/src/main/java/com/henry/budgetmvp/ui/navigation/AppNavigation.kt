@@ -540,18 +540,25 @@ fun AppNavigation(
                                 val firstName = profileName.split(" ").firstOrNull()?.replaceFirstChar { it.uppercase() } ?: "Henry"
 
                                 val onMarkPaid: (EnvelopeItem, Double) -> Unit = { item, remainingAmount ->
-                                    editingTransaction = BudgetTransaction(
+                                    val dueDayNum = item.dueDay ?: currentDate.dayOfMonth
+                                    val txDate = try {
+                                        currentDate.withDayOfMonth(dueDayNum.coerceIn(1, currentDate.lengthOfMonth())).toString()
+                                    } catch (e: Exception) {
+                                        LocalDate.now().toString()
+                                    }
+
+                                    val newTx = BudgetTransaction(
                                         id = UUID.randomUUID().toString(),
                                         userId = user?.uid ?: "",
                                         householdId = userProfile?.householdId ?: "",
                                         type = TransactionType.EXPENSE,
                                         amount = remainingAmount,
-                                        date = LocalDate.now().toString(),
+                                        date = txDate,
                                         merchant = item.name,
-                                        note = "Recurring Bill",
+                                        note = "Bill Payment",
                                         itemId = item.id
                                     )
-                                    showTransactionEditSheet = true
+                                    viewModel.saveTransaction(newTx)
                                 }
 
                                 HomeScreen(
@@ -655,18 +662,25 @@ fun AppNavigation(
                                     else user?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: "Friend"
 
                                 val onMarkPaid: (EnvelopeItem, Double) -> Unit = { item, remainingAmount ->
-                                    editingTransaction = BudgetTransaction(
+                                    val dueDayNum = item.dueDay ?: currentDate.dayOfMonth
+                                    val txDate = try {
+                                        currentDate.withDayOfMonth(dueDayNum.coerceIn(1, currentDate.lengthOfMonth())).toString()
+                                    } catch (e: Exception) {
+                                        LocalDate.now().toString()
+                                    }
+
+                                    val newTx = BudgetTransaction(
                                         id = UUID.randomUUID().toString(),
                                         userId = user?.uid ?: "",
                                         householdId = userProfile?.householdId ?: "",
                                         type = TransactionType.EXPENSE,
                                         amount = remainingAmount,
-                                        date = LocalDate.now().toString(),
+                                        date = txDate,
                                         merchant = item.name,
-                                        note = "Recurring Bill",
+                                        note = "Bill Payment",
                                         itemId = item.id
                                     )
-                                    showTransactionEditSheet = true
+                                    viewModel.saveTransaction(newTx)
                                 }
 
                                 CalendarScreen(
